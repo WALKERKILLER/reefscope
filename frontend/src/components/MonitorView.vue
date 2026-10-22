@@ -1,70 +1,17 @@
 <template>
-  <div class="flex-1 flex flex-col h-full bg-m3-bg overflow-hidden p-6 gap-6 relative">
-    <div class="flex items-center justify-between z-10">
-      <div>
-        <h1 class="text-xl font-semibold text-m3-on-surface flex items-center gap-3">
-          <i class="w-6 h-6 text-m3-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 block">
-              <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-              <circle cx="12" cy="13" r="3"/>
-            </svg>
-          </i>
-          实时监控台
-          <span class="text-[10px] bg-m3-primary/20 text-m3-primary border border-m3-primary/30 px-2 py-0.5 rounded uppercase tracking-widest font-bold">开发中</span>
-        </h1>
-        <p class="text-sm text-m3-on-surface-variant mt-1">接入边缘计算节点的实时流媒体信号</p>
-      </div>
-      <div class="flex gap-2">
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-m3-surface-container rounded-lg border border-m3-outline-variant/50 text-[12px] font-medium text-m3-on-surface-variant">
-          <div class="w-2 h-2 rounded-full bg-m3-success animate-pulse"></div>
-          连接池就绪
-        </div>
-      </div>
-    </div>
-
-    <div class="flex-1 grid grid-cols-2 lg:grid-cols-3 gap-4 z-10">
-      <div v-for="i in 6" :key="i" class="bg-m3-surface rounded-xl border border-m3-outline-variant/30 overflow-hidden flex flex-col relative group">
-        <div class="absolute inset-0 bg-m3-surface-container-high/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-20 backdrop-blur-sm">
-          <i class="w-8 h-8 text-m3-on-surface-variant mb-2 opacity-50">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 block">
-              <circle cx="12" cy="12" r="2"/>
-              <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>
-            </svg>
-          </i>
-          <span class="text-[12px] font-medium text-m3-on-surface-variant">等待信令交互...</span>
-        </div>
-
-        <div class="h-8 bg-m3-surface-container/50 border-b border-m3-outline-variant/30 flex items-center justify-between px-3 shrink-0">
-          <span class="text-[11px] font-mono text-m3-on-surface-variant">CAM_NODE_{{ String(i).padStart(2, '0') }}</span>
-          <span class="text-[10px] bg-m3-surface-container-high px-1.5 rounded text-m3-on-surface-variant">OFFLINE</span>
-        </div>
-        <div class="flex-1 bg-black/5 flex items-center justify-center relative overflow-hidden">
-          <div class="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_center,var(--tw-gradient-stops))] from-m3-on-surface-variant to-transparent"></div>
-          <i class="w-8 h-8 text-m3-outline/30">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 block">
-              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-          </i>
-        </div>
-      </div>
-    </div>
-
-    <!-- Background Decorative -->
-    <div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03]">
-      <i class="w-[40vw] h-[40vw] text-m3-primary">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-full h-full block">
-          <circle cx="12" cy="12" r="2"/>
-          <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/>
-        </svg>
-      </i>
-    </div>
-  </div>
+  <section class="monitor-evidence" aria-label="鱼类活动监测证据">
+    <div class="monitor-heading"><div><h1>鱼类活动监测</h1><p>{{ fileName || '先在控制台选择视频' }} · 画面坐标分析</p></div><span>{{ analysis?.runId ? `Run ${analysis.runId.slice(0,8)}` : '暂无分析结果' }}</span></div>
+    <dl>
+      <div v-for="(label,key) in metrics" :key="key"><dt>{{ label }}</dt><dd>{{ display(analysis?.summary?.metrics[key]) }}</dd></div>
+    </dl>
+    <p class="limitations">同一 Run 与已应用窗口的后端统计。ID 数不是生物个体数；无 GT 不报告精度，珊瑚健康 N/A。</p>
+  </section>
 </template>
-
 <script setup>
+defineProps({analysis:{type:Object,default:null},fileName:String})
+const metrics={observed_track_count:'观测轨迹 ID',track_seconds:'有效停留 · track-s',mean_confidence:'平均置信度',ap50:'独立测试 AP50'}
+function display(metric){return metric?.value==null?'N/A':Number.isInteger(metric.value)?metric.value:Number(metric.value).toFixed(3)}
 </script>
-
 <style scoped>
+.monitor-evidence{flex:none;padding:12px 8px 16px}.monitor-heading{display:flex;gap:16px;align-items:center;justify-content:space-between}h1{font-size:18px;font-weight:650}.monitor-heading p,.monitor-heading span,.limitations{font-size:11px;color:var(--theme-on-surface-variant)}dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:14px 0}dt{font-size:11px;color:var(--theme-on-surface-variant)}dd{font-size:23px;font-family:var(--font-mono);font-variant-numeric:tabular-nums}.limitations{line-height:1.5}@media(max-width:800px){dl{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-heading{align-items:start;flex-direction:column;gap:4px}}
 </style>

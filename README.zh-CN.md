@@ -12,11 +12,10 @@ ReefScope 将视频回放、鱼类检测，以及追踪、珊瑚分割和可复�
 
 当前应用包含视频上传、YOLO 鱼类检测、任务进度、视频回放和检测框叠加。仓库已提供 Docker 配置、CI、示例契约和手动容器发布流程。
 
-后端已提供独立 AnalysisRun 与真实鱼类追踪，运行方法见 [Worker 指南](docs/developers/fish-analysis.md)。
+工作台已接入独立 AnalysisRun、真实鱼类追踪、同步叠加、画面热图和窗口导出，运行方法见 [Worker 与工作台指南](docs/developers/fish-analysis.md)。
 
 以下能力仍在规划中：
 
-- 同步轨迹叠加，以及按停留时间加权的画面热力图。
 - 珊瑚分割、专家复核的健康标签和可复现训练。
 - 确定性评估与训练报告。
 - 结合视频叠加的海洋监测信息大屏。
@@ -50,8 +49,11 @@ uv pip install -r backend/requirements.txt
 ```bash
 cd backend
 python manage.py migrate
+python manage.py register_fish_model fish:local-v1 models/model_best.pt
 python manage.py runserver 127.0.0.1:8000
 ```
+
+在另一个后端终端激活相同环境，从 `backend/` 执行 `python manage.py run_analysis_worker`，与 Web 服务同时保持运行。
 
 ### 前端
 
@@ -63,7 +65,7 @@ npm ci
 VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-访问 [localhost:5173](http://127.0.0.1:5173)，上传 MP4 视频并启动检测。健康检查地址为 [localhost:8000/api/health](http://127.0.0.1:8000/api/health)。
+访问 [localhost:5173](http://127.0.0.1:5173)，上传 MP4 视频，在右侧选择注册模型并创建 Run。健康检查地址为 [localhost:8000/api/health](http://127.0.0.1:8000/api/health)。
 
 上述命令使用 POSIX shell。CUDA 和 Docker 配置见 [开发指南](docs/developers/development.md)。完成认证、媒体访问控制和部署加固前，请保持服务仅供本地访问。
 

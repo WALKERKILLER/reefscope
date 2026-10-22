@@ -12,11 +12,10 @@ ReefScope brings video review, fish detection, and a research roadmap for tracki
 
 The current application includes video upload, YOLO-based fish detection, task progress, playback, and detection overlays. The repository also includes Docker configuration, CI, sample contracts, and a manual container-publishing workflow.
 
-Backend fish tracking is available through independent analysis Runs; see the [Worker guide](docs/developers/fish-analysis.md).
+Fish tracking, synchronized overlays, image-plane heatmaps and window exports are available through independent analysis Runs; see the [Worker and workspace guide](docs/developers/fish-analysis.md).
 
 The following capabilities are planned:
 
-- Synchronized tracking overlays and time-weighted image-plane heatmaps.
 - Coral segmentation, reviewed health labels, and reproducible training.
 - Deterministic evaluation and training reports.
 - Ocean monitoring dashboards with synchronized video overlays.
@@ -50,8 +49,11 @@ Place your model at `backend/models/model_best.pt`, then start the backend:
 ```bash
 cd backend
 python manage.py migrate
+python manage.py register_fish_model fish:local-v1 models/model_best.pt
 python manage.py runserver 127.0.0.1:8000
 ```
+
+In another backend terminal, activate the same environment and run `python manage.py run_analysis_worker` from `backend/`. Keep this Worker running alongside the Web server.
 
 ### Frontend
 
@@ -63,7 +65,7 @@ npm ci
 VITE_API_BASE_URL=http://127.0.0.1:8000 npm run dev
 ```
 
-Open [localhost:5173](http://127.0.0.1:5173), upload an MP4 video, and start detection. The health endpoint is [localhost:8000/api/health](http://127.0.0.1:8000/api/health).
+Open [localhost:5173](http://127.0.0.1:5173), upload an MP4 video, select a registered model in the analysis panel, and create a Run. The health endpoint is [localhost:8000/api/health](http://127.0.0.1:8000/api/health).
 
 These commands use a POSIX shell. See the [development guide](docs/developers/development.md) for CUDA and Docker setup. Keep the service local until authentication, media access controls, and deployment hardening are implemented.
 
