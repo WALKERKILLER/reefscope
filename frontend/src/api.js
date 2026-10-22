@@ -64,3 +64,8 @@ export const getAnalysisTracks = (id, params, signal) => http.get(`/v1/analysis-
 export const getAnalysisHeatmap = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/heatmap`, { params, signal })
 export const getAnalysisSummary = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/summary`, { params, signal })
 export const downloadAnalysis = (id, resource, params) => http.get(`/v1/analysis-runs/${id}/${resource}`, { params, responseType: 'blob' })
+
+export const getModelResearch = (id, signal) => http.get(`/v1/model-versions/${encodeURIComponent(id)}/history`, { signal })
+export const getTrainingReport = (id, signal) => http.get(`/v1/reports/${id}`, { signal })
+export const downloadTrainingReport = (id) => http.get(`/v1/reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
+export const reportPrintUrl = (id) => `${API_BASE_URL}/api/v1/reports/${encodeURIComponent(id)}/export?export=html`
