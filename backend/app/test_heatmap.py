@@ -13,7 +13,7 @@ from django.test import TestCase as DjangoTestCase
 
 def point(time, x=0.25, y=0.25, identity=1, frame=None, observed=True):
     return {"track_id":identity,"frame":int(time) if frame is None else frame,"timestamp_ms":time,
-            "center_xyn":[x,y], "observed":observed,"class_id":0}
+            "center_xyn":[x,y], "observed":observed,"class_id":0,"confidence":0.8}
 
 
 class IntegrationTests(TestCase):
@@ -89,3 +89,20 @@ class TrackApiTests(RunFixture, DjangoTestCase):
         self.assertAlmostEqual(data["track_seconds_total"],0.15)
         self.assertIn("非海底地理坐标",data["interpretation"])
         self.assertEqual(self.client.get(url,{"start_ms":"nan"}).status_code,400)
+
+    def test_summary_export_preserves_values_and_missing_reasons(self):
+        run=self.prepare_tracks()
+        url=f"/api/v1/analysis-runs/{run.pk}/summary"
+        options={"start_ms":25,"end_ms":175}
+        result=self.client.get(url,options).json()
+        exported=self.client.get(url,options|{"export":"json"})
+        self.assertEqual(result,exported.json())
+        self.assertIn("analysis_report.json",exported["Content-Disposition"])
+        self.assertEqual(result["metrics"]["tracked_observation_count"]["value"],1)
+        self.assertAlmostEqual(result["metrics"]["track_seconds"]["value"],0.15)
+        self.assertAlmostEqual(result["metrics"]["mean_confidence"]["value"],0.8)
+        self.assertIsNone(result["metrics"]["ap50"]["value"])
+        self.assertEqual(result["metrics"]["ap50"]["reason"],"missing_independent_ground_truth")
+        empty=self.client.get(url,{"start_ms":500,"end_ms":600}).json()
+        self.assertEqual(empty["metrics"]["observed_track_count"]["value"],0)
+        self.assertIsNone(empty["metrics"]["mean_confidence"]["value"])
