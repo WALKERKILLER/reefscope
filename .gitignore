@@ -50,3 +50,4 @@ backend/media/*
 
 # VibeWise legacy local state
 .sensible-vibes/
+backend/.analysis/

@@ -12,9 +12,11 @@ ReefScope brings video review, fish detection, and a research roadmap for tracki
 
 The current application includes video upload, YOLO-based fish detection, task progress, playback, and detection overlays. The repository also includes Docker configuration, CI, sample contracts, and a manual container-publishing workflow.
 
+Backend fish tracking is available through independent analysis Runs; see the [Worker guide](docs/developers/fish-analysis.md).
+
 The following capabilities are planned:
 
-- Fish tracking with persistent track IDs and time-weighted image-plane heatmaps.
+- Synchronized tracking overlays and time-weighted image-plane heatmaps.
 - Coral segmentation, reviewed health labels, and reproducible training.
 - Deterministic evaluation and training reports.
 - Ocean monitoring dashboards with synchronized video overlays.
