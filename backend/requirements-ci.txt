@@ -6,12 +6,12 @@ asgiref==3.12.1
     #   django-cors-headers
 django==5.0.6
     # via
-    #   -r backend/requirements-ci.in
+    #   -r requirements-ci.in
     #   django-cors-headers
     #   djangorestframework
-django-cors-headers==4.4.0
-    # via -r backend/requirements-ci.in
+django-cors-headers==4.9.0
+    # via -r requirements-ci.in
 djangorestframework==3.15.2
-    # via -r backend/requirements-ci.in
+    # via -r requirements-ci.in
 sqlparse==0.6.0
     # via django
