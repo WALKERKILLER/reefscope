@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen w-screen flex flex-col overflow-hidden text-m3-on-surface bg-m3-bg font-sans text-[13px] transition-colors duration-200">
+  <div class="app-shell h-dvh w-screen flex flex-col overflow-hidden text-m3-on-surface bg-m3-bg font-sans text-[13px] transition-colors duration-200">
     <!-- Title Bar -->
     <header class="h-14 border-b border-m3-outline-variant/30 flex items-center justify-between px-6 shrink-0 select-none z-30 bg-m3-bg transition-colors duration-200">
       <div class="flex items-center gap-4 h-full">
@@ -13,21 +13,21 @@
           </i>
         </div>
         <div class="flex space-x-6 h-full items-center font-medium">
-          <div
+          <button type="button" :aria-pressed="activeView === 'console'"
             @click="activeView = 'console'"
             class="cursor-pointer transition-colors px-2 py-1 rounded-md"
             :class="activeView === 'console' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >控制台</div>
-          <div
+          >控制台</button>
+          <button type="button" :aria-pressed="activeView === 'monitor'"
             @click="activeView = 'monitor'"
             class="cursor-pointer transition-colors px-2 py-1 rounded-md"
             :class="activeView === 'monitor' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >监控台</div>
-          <div
+          >监控台</button>
+          <button type="button" :aria-pressed="activeView === 'records'"
             @click="activeView = 'records'"
             class="cursor-pointer transition-colors px-2 py-1 rounded-md"
             :class="activeView === 'records' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >记录</div>
+          >记录</button>
         </div>
       </div>
       <div class="absolute left-1/2 -translate-x-1/2 flex items-center">
@@ -37,6 +37,7 @@
         <!-- Theme Toggle -->
         <button
           @click="toggleTheme"
+          :aria-label="isDarkTheme ? '切换为浅色' : '切换为深色'"
           class="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer text-m3-on-surface-variant hover:text-m3-primary hover:bg-m3-primary/10 transition-colors"
         >
           <i v-if="isDarkTheme" class="w-4 h-4">
@@ -60,7 +61,7 @@
     <!-- Main Body -->
     <main class="flex flex-1 overflow-hidden relative z-10">
       <!-- Console View -->
-      <template v-if="activeView === 'console'">
+      <template v-if="activeView === 'console' || activeView === 'monitor'">
         <!-- Activity Bar -->
         <div class="w-16 border-r border-m3-outline-variant/30 bg-m3-bg flex flex-col items-center py-4 gap-4 shrink-0 z-20">
           <div
@@ -124,11 +125,11 @@
         </div>
 
         <!-- Sidebar + Workspace + RightPanel flex layout -->
-        <div ref="consoleLayoutRef" class="flex-1 flex overflow-hidden">
+        <div ref="consoleLayoutRef" :class="{'ocean-wall':activeView === 'monitor' && currentTaskId}" class="console-layout flex-1 flex overflow-hidden">
           <!-- Sidebar -->
           <div
             v-if="activePanel !== null"
-            class="flex-shrink-0"
+            class="file-sidebar flex-shrink-0"
             :style="{ width: `${leftPanelWidth}px`, minWidth: `${LEFT_PANEL_MIN}px` }"
           >
             <Sidebar
@@ -158,7 +159,8 @@
           </div>
 
           <!-- VideoWorkspace -->
-          <div class="flex-1 min-w-0 bg-transparent p-4 overflow-hidden">
+          <div class="video-column flex flex-col flex-1 min-w-0 bg-transparent p-4 overflow-hidden">
+            <MonitorView v-if="activeView === 'monitor'" :analysis="analysisState" :file-name="fileName" />
             <ConfigEditor
               v-if="workspaceMode === 'config'"
               :file-name="configFileEntry.name"
@@ -168,17 +170,19 @@
               @save="handleSaveConfig"
               @close="handleCloseWorkspace"
             />
-            <VideoWorkspace
-              v-else
+            <VideoWorkspace class="flex-1 min-h-0"
+              v-if="workspaceMode !== 'config'"
               :file-name="fileName"
               :status="status"
               :progress="progress"
               :logs="logs"
               :video-url="videoUrl"
-              :result-video-url="resultVideoUrl"
-              :playback-mode="playbackMode"
+              :result-video-url="analysisState ? null : resultVideoUrl"
+              :playback-mode="analysisState ? 'overlay' : playbackMode"
               :boxes="boxes"
+              :analysis="analysisState"
               :current-time="currentTime"
+              @roi-point="point => analysisPanelRef?.addRoiPoint(point)"
               @file-drop="handleFileDrop"
               @close="handleCloseWorkspace"
               @time-update="(t) => currentTime = t"
@@ -198,10 +202,11 @@
 
           <!-- RightPanel -->
           <div
-            class="flex-shrink-0"
+            class="analysis-column flex-shrink-0"
             :style="{ width: `${rightPanelWidth}px`, minWidth: `${RIGHT_PANEL_MIN}px` }"
           >
-            <RightPanel
+            <FishAnalysisPanel v-if="currentTaskId && workspaceMode === 'video'" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" @analysis="analysisState = $event" @seek="handleTimelineClick" />
+            <RightPanel v-else
               :boxes="boxes"
               :current-time="currentTime"
               @timeline-click="handleTimelineClick"
@@ -210,8 +215,6 @@
         </div>
       </template>
 
-      <!-- Monitor View -->
-      <MonitorView v-if="activeView === 'monitor'" />
 
       <!-- Records View -->
       <RecordsView
@@ -231,12 +234,12 @@
           </span>
         </div>
         <div class="flex items-center cursor-pointer text-m3-on-surface-variant hover:text-m3-on-surface transition-colors">
-          节点: AP-EAST-01, HK-04
+          本地研究工作台
         </div>
       </div>
       <div class="flex h-full items-center gap-6 text-m3-on-surface-variant font-medium">
-        <div class="flex items-center">延迟: 42ms</div>
-        <div class="flex items-center">{{ status === 'playing' ? '流媒体: 4K 60FPS' : '流媒体: 就绪' }}</div>
+        <div class="flex items-center">精度以独立评估为准</div>
+        <div class="flex items-center">{{ status === 'playing' ? '视频回放' : '等待视频' }}</div>
       </div>
     </footer>
 
@@ -265,12 +268,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
-import { uploadVideo, startProcess, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl } from './api'
+import { ref, watch, onBeforeUnmount, onMounted, defineAsyncComponent } from 'vue'
+import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun } from './api'
 import Sidebar from './components/Sidebar.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
-import ConfigEditor from './components/ConfigEditor.vue'
+const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
 import RightPanel from './components/RightPanel.vue'
+import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
 import MonitorView from './components/MonitorView.vue'
 import RecordsView from './components/RecordsView.vue'
 
@@ -280,6 +284,8 @@ const WORKSPACE_MIN = 320
 const RESIZE_GAP = 12
 
 // --- State ---
+const analysisState = ref(null)
+const analysisPanelRef = ref(null)
 const history = ref([])
 const status = ref('idle') // 'idle' | 'processing' | 'playing'
 const progress = ref(0)
@@ -296,7 +302,7 @@ const isDarkTheme = ref(true)
 const toasts = ref([])
 const currentTaskId = ref(null)
 const leftPanelWidth = ref(280)
-const rightPanelWidth = ref(300)
+const rightPanelWidth = ref(340)
 const consoleLayoutRef = ref(null)
 const workspaceMode = ref('video')
 const configContent = ref('')
@@ -319,7 +325,14 @@ const pipelineSettings = ref({
 const selectionMode = ref(false)
 const selectedFileIds = ref([])
 
-let pollTimer = null
+let workspaceGeneration = 0
+let uploadAbort = null
+let taskAbort = null
+function invalidateWorkspaceRequests() {
+  workspaceGeneration += 1
+  uploadAbort?.abort()
+  taskAbort?.abort()
+}
 let stopResizeListener = null
 let configSaveTimer = null
 
@@ -556,23 +569,6 @@ function applyTaskPlayback(task, logPrefix = '[DONE]') {
   upsertHistory(task)
 }
 
-function buildProcessPayload() {
-  const targetLabels = String(pipelineSettings.value.targetLabels || '')
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-
-  return {
-    model_path: String(pipelineSettings.value.modelPath || '').trim(),
-    target_labels: targetLabels.length > 0 ? targetLabels : ['fish'],
-    confidence_threshold: Number(pipelineSettings.value.confidenceThreshold || 0.25),
-    iou_threshold: Number(pipelineSettings.value.iouThreshold || 0.45),
-    frame_stride: Number(pipelineSettings.value.frameStride || 5),
-    batch_size: Number(pipelineSettings.value.batchSize || 8),
-    use_half: Boolean(pipelineSettings.value.useHalf)
-  }
-}
-
 // --- API: File Drop (Real) ---
 async function handleFileDrop(file) {
   workspaceMode.value = 'video'
@@ -583,109 +579,38 @@ async function handleFileDrop(file) {
 
   fileName.value = file.name
   const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
-  const processPayload = buildProcessPayload()
-
+  invalidateWorkspaceRequests()
+  const version = workspaceGeneration
+  uploadAbort = new AbortController()
+  currentTaskId.value = null
+  analysisState.value = null
   status.value = 'processing'
   progress.value = 0
-  logs.value = [`SYS_INIT: Uploading ${file.name} (${fileSizeMB} MB)`]
-  logs.value = [...logs.value, `[CFG] 目标类别: ${processPayload.target_labels.join(', ')}`]
-  logs.value = [...logs.value, processPayload.model_path
-    ? `[CFG] 模型权重: ${processPayload.model_path}`
-    : '[CFG] 模型权重: 使用后端 backend/models/model_best.pt']
-  logs.value = [...logs.value, `[CFG] 抽帧间隔: ${processPayload.frame_stride}, batch: ${processPayload.batch_size}, 半精度: ${processPayload.use_half ? '开启' : '关闭'}`]
-  showToast('已上传遥测数据', file.name, 'info')
+  logs.value = [`正在上传 ${file.name}（${fileSizeMB} MB）`]
 
   try {
     // Step 1: Upload
-    logs.value = [...logs.value, `[NET] 正在上传到遥测节点...`]
-    const uploadRes = await uploadVideo(file)
+    logs.value = [...logs.value, '等待本地后端保存视频…']
+    const uploadRes = await uploadVideo(file, uploadAbort.signal)
+    if (version !== workspaceGeneration) return
     const task = uploadRes.data
     currentTaskId.value = task.task_id
     upsertHistory(task)
     progress.value = 0
     logs.value = [...logs.value, `[NET] 上传完成，任务 ID: ${task.task_id}`]
 
-    // Step 2: Start processing
-    logs.value = [...logs.value, `[PROC] 启动推理引擎...`]
-    showToast('管线激活', '推理引擎已启用', 'warn')
-    await startProcess(task.task_id, processPayload)
-    progress.value = 0
-    logs.value = [...logs.value, `[PROC] 推理引擎已启动，等待后端返回真实帧进度...`]
-
-    // Step 3: Poll until done
-    startPolling(task.task_id)
+    videoUrl.value = toMediaUrl(task.uploaded_video_path)
+    resultVideoUrl.value = null
+    playbackMode.value = 'overlay'
+    boxes.value = []
+    status.value = 'playing'
+    showToast('视频已就绪', '在右侧选择注册模型并创建分析 Run', 'info')
   } catch (error) {
+    if (version !== workspaceGeneration || error.code === 'ERR_CANCELED') return
     const errMsg = error.response?.data?.detail || error.message || '上传失败'
     logs.value = [...logs.value, `[ERR] ${errMsg}`]
     showToast('处理失败', errMsg, 'alert')
     status.value = 'idle'
-  }
-}
-
-// --- Polling ---
-function startPolling(taskId) {
-  stopPolling()
-  let prevProgress = -1
-  let prevFrame = -1
-  let prevTotal = -1
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await getTask(taskId)
-      const task = res.data
-      const pct = Number(task.progress || 0)
-      const currentFrame = Number(task.progress_current_frame || 0)
-      const totalFrames = Number(task.progress_total_frames || 0)
-      const progressMessage = task.progress_message || ''
-
-      if (task.progress !== undefined) {
-        progress.value = pct
-      }
-      upsertHistory(task)
-
-      if (
-        task.status === 'processing' &&
-        totalFrames > 0 &&
-        (pct !== prevProgress || currentFrame !== prevFrame || totalFrames !== prevTotal)
-      ) {
-        logs.value = [
-          ...logs.value,
-          `[PROC] ${progressMessage || `后端正在处理第 ${currentFrame}/${totalFrames} 帧`} (${pct}%)`
-        ]
-        prevProgress = pct
-        prevFrame = currentFrame
-        prevTotal = totalFrames
-      }
-
-      if (task.status === 'completed') {
-        stopPolling()
-        progress.value = 100
-        const detCount = (task.detections || []).length
-        logs.value = [...logs.value, `[DONE] 处理完成，检测到 ${detCount} 个实体`]
-        if (detCount > 0) {
-          const labels = [...new Set(task.detections.map(d => d.label))]
-          logs.value = [...logs.value, `[INFO] 检测到的类别: ${labels.join(', ')}`]
-        }
-        showToast('处理完成', detCount > 0 ? `找到 ${detCount} 个实体` : '未检测到目标', detCount > 0 ? 'success' : 'info')
-        applyTaskPlayback(task)
-      }
-
-      if (task.status === 'failed') {
-        stopPolling()
-        logs.value = [...logs.value, `[ERR] 任务处理失败`]
-        showToast('处理失败', '请检查后端日志', 'alert')
-        status.value = 'idle'
-      }
-    } catch (error) {
-      logs.value = [...logs.value, `[ERR] 轮询失败: ${error.message}`]
-      stopPolling()
-    }
-  }, 1000)
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
   }
 }
 
@@ -695,14 +620,15 @@ function handleCloseWorkspace() {
   fileName.value = ''
   videoUrl.value = null
   resultVideoUrl.value = null
-  playbackMode.value = toMediaUrl(task.result_video_path) ? 'result' : 'overlay'
+  playbackMode.value = 'overlay'
+  analysisState.value = null
   boxes.value = []
   logs.value = []
   progress.value = 0
   currentTime.value = 0
   currentTaskId.value = null
   workspaceMode.value = 'video'
-  stopPolling()
+  invalidateWorkspaceRequests()
 }
 
 function handleTimelineClick(time) {
@@ -726,11 +652,11 @@ function handleFileSelect(item) {
     progress.value = 0
     currentTime.value = 0
     currentTaskId.value = null
-    stopPolling()
+    invalidateWorkspaceRequests()
     return
   }
 
-  if (item.status === 'processed' && item.url) {
+  if (item.sourceUrl || item.url) {
     handlePlayRecord(item)
   }
 }
@@ -759,26 +685,13 @@ function syncTaskInHistory(task) {
   upsertHistory(task)
 }
 
-function beginTaskPlayback(task, logPrefix = '[PROC]') {
-  activeView.value = 'console'
-  workspaceMode.value = 'video'
-  stopPolling()
-  const resolvedResultVideoUrl = toMediaUrl(task.result_video_path) || null
-  currentTaskId.value = task.task_id
-  fileName.value = task.original_filename
-  videoUrl.value = toMediaUrl(task.uploaded_video_path)
-  resultVideoUrl.value = resolvedResultVideoUrl
-  playbackMode.value = resolvedResultVideoUrl ? 'result' : 'overlay'
-  boxes.value = []
-  currentTime.value = 0
-  progress.value = 0
-  status.value = 'processing'
-  logs.value = [
-    `${logPrefix} 已载入任务 ${task.task_id}: ${task.original_filename}`,
-    `${logPrefix} 正在重新识别视频，等待后端返回真实进度...`
-  ]
-  syncTaskInHistory(task)
-  startPolling(task.task_id)
+async function queueNewAnalysis(taskId) {
+  const [taskResponse, historyResponse, modelsResponse] = await Promise.all([getTask(taskId), listAnalysisRuns(taskId), listAnalysisModels()])
+  const previous = historyResponse.data.items[0]
+  const model = modelsResponse.data.items.find(item => item.id === previous?.config_snapshot.models.fish) || modelsResponse.data.items[0]
+  if (!model) throw new Error('尚无注册模型，请先注册授权权重')
+  await createAnalysisRun(taskId, { kind: 'fish', models: { fish: model.id }, settings: previous?.config_snapshot.settings || {} })
+  return taskResponse.data
 }
 
 async function handleSingleFileAction({ action, item }) {
@@ -821,9 +734,13 @@ async function handleSingleFileAction({ action, item }) {
     }
 
     if (action === 'rerun') {
-      const res = await mutateTask(taskId, { action: 'rerun', ...buildProcessPayload() })
-      beginTaskPlayback(res.data, '[RERUN]')
-      showToast('已重做', res.data.original_filename, 'warn')
+      const version = workspaceGeneration
+      const task = await queueNewAnalysis(taskId)
+      if (version !== workspaceGeneration) return
+      const wasCurrent = currentTaskId.value === taskId
+      applyTaskPlayback(task, '[RERUN]')
+      if (wasCurrent) analysisPanelRef.value?.refresh()
+      showToast('新分析已入队', '旧 Run 和产物保留，可在分析历史切换', 'info')
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '操作失败'
@@ -885,14 +802,14 @@ async function handleBatchFileAction({ action }) {
     }
 
     if (action === 'rerun') {
-      const res = await batchMutateTasks({ action: 'rerun', task_ids: taskIds, ...buildProcessPayload() })
-      const tasks = res.data.tasks || []
-      tasks.forEach(syncTaskInHistory)
-      setSelectionMode(false)
-      if (tasks.length > 0) {
-        beginTaskPlayback(tasks[0], '[BATCH]')
+      let count = 0
+      for (const taskId of taskIds) {
+        try { await queueNewAnalysis(taskId); count += 1 }
+        catch { showToast('部分分析未入队', `已入队 ${count} 个 Run，其余文件请重试`, 'alert'); return }
       }
-      showToast('批量重做已启动', `共启动 ${tasks.length} 个任务`, 'warn')
+      setSelectionMode(false)
+      analysisPanelRef.value?.refresh()
+      showToast('批量分析已入队', `共创建 ${count} 个独立 Run，旧结果保留`, 'info')
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '批量操作失败'
@@ -904,7 +821,9 @@ async function handleBatchFileAction({ action }) {
 async function handlePlayRecord(record) {
   activeView.value = 'console'
   workspaceMode.value = 'video'
-  stopPolling()
+  invalidateWorkspaceRequests()
+  const version = workspaceGeneration
+  taskAbort = new AbortController()
 
   const fallbackTask = {
     task_id: record.taskId || Number(record.id),
@@ -922,9 +841,11 @@ async function handlePlayRecord(record) {
   if (!Number.isFinite(taskId)) return
 
   try {
-    const res = await getTask(taskId)
+    const res = await getTask(taskId, taskAbort.signal)
+    if (version !== workspaceGeneration) return
     applyTaskPlayback(res.data, '[HISTORY]')
   } catch (error) {
+    if (version !== workspaceGeneration || error.code === 'ERR_CANCELED') return
     logs.value = [...logs.value, `[WARN] 历史任务详情加载失败，已使用缓存数据回放: ${error.message}`]
   }
 }
@@ -970,7 +891,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
-  stopPolling()
+  invalidateWorkspaceRequests()
   stopResize()
   if (configSaveTimer) {
     clearTimeout(configSaveTimer)
@@ -979,4 +900,8 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.ocean-wall .file-sidebar{display:none}
+.ocean-wall>.cursor-col-resize{display:none}
+@media(max-width:1100px){.file-sidebar{width:210px!important;min-width:0!important}.analysis-column{width:310px!important;min-width:0!important}}
+@media(max-width:800px){.console-layout{flex-direction:column;overflow:auto!important}.file-sidebar{width:100%!important;max-height:160px;flex-shrink:0}.video-column{min-height:420px;flex:none}.analysis-column{width:100%!important;min-height:500px;flex:1}.console-layout>.cursor-col-resize{display:none}header{padding-left:10px;padding-right:10px}header>.absolute{display:none}footer{font-size:10px;gap:8px}footer>div{gap:10px}}
 </style>

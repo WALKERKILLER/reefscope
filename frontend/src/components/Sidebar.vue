@@ -94,7 +94,7 @@
             />
 
             <div class="relative flex items-center justify-center w-4 h-4 shrink-0">
-              <i v-if="item.status === 'processed'" class="w-4 h-4" :class="idx === 0 ? 'text-m3-primary' : 'text-m3-on-surface-variant'">
+              <i v-if="item.status === 'processed' || item.status === 'pending'" class="w-4 h-4" :class="idx === 0 ? 'text-m3-primary' : 'text-m3-on-surface-variant'">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 block">
                   <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
                   <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
@@ -116,7 +116,7 @@
               </i>
             </div>
 
-            <span class="truncate flex-1">{{ item.name }}</span>
+            <button type="button" class="truncate flex-1 text-left focus-visible:outline-2 focus-visible:outline-m3-primary" @click.stop="handleItemClick(item)">{{ item.name }}</button>
 
             <span v-if="item.status === 'processing'" class="text-[9px] font-medium tracking-widest text-m3-warning opacity-90 uppercase bg-m3-warning/10 px-1.5 rounded">执行</span>
 
@@ -124,6 +124,7 @@
               v-if="!selectionMode"
               type="button"
               class="shrink-0 rounded-md p-1 text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container transition-colors"
+              :aria-label="`操作 ${item.name}`"
               @click.stop="toggleItemMenu(item.id)"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 block">

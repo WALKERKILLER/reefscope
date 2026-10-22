@@ -8,7 +8,8 @@
         <button
           v-if="status !== 'idle'"
           @click="$emit('close')"
-          class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-m3-primary/20 text-m3-primary transition-all"
+          aria-label="关闭视频"
+          class="p-0.5 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-m3-primary/20 text-m3-primary transition-all"
         >
           <i class="w-3.5 h-3.5">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 block">
@@ -117,7 +118,7 @@
           <div class="bg-m3-surface-container px-6 py-4 text-[11px] font-medium tracking-widest text-m3-on-surface flex justify-between items-center border-b border-m3-outline-variant/30">
             <span class="flex items-center gap-2.5">
               <div class="w-2 h-2 bg-m3-warning rounded-full animate-pulse"></div>
-              推理引擎
+              正在上传视频
             </span>
           </div>
 
@@ -148,6 +149,8 @@
           <div ref="playerHostRef" class="absolute inset-0"></div>
           <canvas
             ref="canvasRef"
+            :style="{pointerEvents: analysis?.layers.roiEditing ? 'auto' : 'none', cursor: analysis?.layers.roiEditing ? 'crosshair' : 'default'}"
+            @click="pickRoiPoint"
             class="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
           />
         </div>
@@ -161,6 +164,7 @@ import Artplayer from 'artplayer'
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
+  analysis: { type:Object, default:null },
   status: { type: String, default: 'idle' },
   progress: { type: Number, default: 0 },
   logs: { type: Array, default: () => [] },
@@ -176,7 +180,7 @@ const props = defineProps({
   fileName: { type: String, default: '' }
 })
 
-const emit = defineEmits(['file-drop', 'close', 'time-update', 'settings-click', 'update:playback-mode'])
+const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'settings-click', 'update:playback-mode'])
 
 const isDragging = ref(false)
 const isPlaying = ref(false)
@@ -426,6 +430,8 @@ function handleArtResize() {
 
 watch(() => props.currentTime, (t) => {
   displayTime.value = t
+  const video=getVideoElement()
+  if(video && Math.abs(video.currentTime-t)>0.15)video.currentTime=t
 })
 
 function prepareBoxes(boxes) {
@@ -877,10 +883,11 @@ function renderCanvas(force = false, explicitTime = null) {
   }
   canvasContext?.setTransform(dpr, 0, 0, dpr, 0, 0)
 
-  const currentBoxes = getActiveBoxes(time)
+  const currentBoxes = props.analysis ? analysisBoxes(time) : getActiveBoxes(time)
   lastRenderedTime = time
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+  if (props.analysis) renderAnalysisLayers(ctx,metrics,time)
   const labelFontSize = Math.max(10, Math.min(14, Math.round(drawWidth / 90)))
   const lineWidth = Math.max(2, Math.min(3, Math.round(drawWidth / 560)))
   const labelHeight = Math.max(18, Math.round(labelFontSize * 1.35))
@@ -897,6 +904,7 @@ function renderCanvas(force = false, explicitTime = null) {
     const bgColor = isAlert ? 'rgba(255, 180, 171, 0.2)' : 'rgba(133, 210, 246, 0.2)'
     const textColor = isAlert ? '#93000a' : '#003548'
 
+    ctx.setLineDash(box._held ? [4, 3] : [])
     ctx.beginPath()
     ctx.rect(x, y, w, h)
     ctx.strokeStyle = color
@@ -908,16 +916,87 @@ function renderCanvas(force = false, explicitTime = null) {
       ctx.fill()
     }
 
+    ctx.setLineDash([])
     ctx.fillStyle = color
     const textWidth = ctx.measureText(box._labelText).width
 
+    const labelX = Math.max(offsetX, Math.min(x - 1, offsetX + drawWidth - textWidth - 10))
+    const labelY = Math.max(offsetY, y - labelHeight)
     ctx.beginPath()
-    ctx.rect(x - 1, Math.max(0, y - labelHeight), textWidth + 10, labelHeight)
+    ctx.rect(labelX, labelY, textWidth + 10, labelHeight)
     ctx.fill()
 
     ctx.fillStyle = textColor
-    ctx.fillText(box._labelText, x + 4, Math.max(labelFontSize, y - Math.max(6, Math.round(labelHeight * 0.3))))
+    ctx.fillText(box._labelText, labelX + 4, labelY + labelHeight - 5)
   })
+}
+
+let heatSurface = null
+let serverFrames = []
+let serverTails = new Map()
+watch(() => props.analysis, value => {
+  heatSurface = null
+  serverFrames = []
+  serverTails = new Map()
+  if(value) {
+    const frames = new Map()
+    for(const point of value.tracks || []) {
+      if(!point.observed) continue
+      if(!frames.has(point.timestamp_ms)) frames.set(point.timestamp_ms,[])
+      frames.get(point.timestamp_ms).push(point)
+      if(!serverTails.has(point.track_id)) serverTails.set(point.track_id,[])
+      serverTails.get(point.track_id).push(point)
+    }
+    serverFrames=[...frames.entries()].sort((a,b)=>a[0]-b[0])
+    const grid=value.heatmap
+    if(grid){
+      heatSurface=document.createElement('canvas');heatSurface.width=grid.width;heatSurface.height=grid.height
+      const context=heatSurface.getContext('2d'),pixels=context.createImageData(grid.width,grid.height)
+      grid.values_display.forEach((row,y)=>row.forEach((v,x)=>{const i=(y*grid.width+x)*4;pixels.data[i]=56;pixels.data[i+1]=189;pixels.data[i+2]=248;pixels.data[i+3]=Math.round(Math.max(0,Math.min(1,v))*235)}))
+      context.putImageData(pixels,0,0)
+    }
+  }
+  nextTick(()=>renderCanvas(true,getVideoElement()?.currentTime ?? 0))
+},{immediate:true})
+function analysisBoxes(time){
+  if(!props.analysis.layers.boxes) return []
+  let left=0,right=serverFrames.length-1,index=-1
+  while(left<=right){const mid=(left+right)>>1;if(serverFrames[mid][0]<=time*1000+0.001){index=mid;left=mid+1}else right=mid-1}
+  if(index<0 || time*1000-serverFrames[index][0]>Math.min(250,Math.max(50,1200/props.analysis.fps)))return []
+  const held = time*1000-serverFrames[index][0] > 1000/props.analysis.fps
+  return serverFrames[index][1].map(p=>({x:p.bbox_xywhn[0],y:p.bbox_xywhn[1],width:p.bbox_xywhn[2],height:p.bbox_xywhn[3],_held:held,_labelText:` ${p.label} #${p.track_id} · ${held?'保持':'观测'}@${(p.timestamp_ms/1000).toFixed(2)}s `}))
+}
+function renderAnalysisLayers(ctx,m,time){
+  const a=props.analysis,project=p=>[m.offsetX+p[0]*m.drawWidth,m.offsetY+p[1]*m.drawHeight]
+  ctx.save()
+  ctx.beginPath();ctx.rect(m.offsetX,m.offsetY,m.drawWidth,m.drawHeight);ctx.clip()
+  if(a.layers.heatmap && heatSurface){ctx.globalAlpha=a.layers.opacity;ctx.imageSmoothingEnabled=false;ctx.drawImage(heatSurface,m.offsetX,m.offsetY,m.drawWidth,m.drawHeight);ctx.globalAlpha=1}
+  if(a.layers.tails || a.layers.fullTracks){
+    ctx.strokeStyle='#38bdf8';ctx.lineWidth=2
+    for(const points of serverTails.values()){
+      let previous=null
+      ctx.beginPath()
+      for(const p of points){
+        if(!a.layers.fullTracks && p.timestamp_ms>time*1000)break
+        if(!a.layers.fullTracks && p.timestamp_ms<(time-a.layers.tailSeconds)*1000)continue
+        const [x,y]=project(p.center_xyn)
+        if(!previous || (p.timestamp_ms-previous.timestamp_ms)/1000>a.allowedGap || p.segment_id!==previous.segment_id)ctx.moveTo(x,y);else ctx.lineTo(x,y)
+        previous=p
+      }
+      ctx.stroke()
+    }
+  }
+  if(a.roi?.length){ctx.beginPath();a.roi.forEach((p,i)=>{const[x,y]=project(p);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();ctx.strokeStyle='#fbbf24';ctx.setLineDash([5,4]);ctx.lineWidth=2;ctx.stroke()}
+  ctx.restore()
+}
+function pickRoiPoint(event){
+  if(!props.analysis?.layers.roiEditing)return
+  const video=getVideoElement(),surface=getPlaybackSurfaceElement()
+  if(!video||!surface)return
+  const m=computeDrawMetrics(video,surface),rect=surface.getBoundingClientRect()
+  if(!m)return
+  const x=(event.clientX-rect.left-m.offsetX)/m.drawWidth,y=(event.clientY-rect.top-m.offsetY)/m.drawHeight
+  if(x>=0&&x<=1&&y>=0&&y<=1)emit('roi-point',[Number(x.toFixed(4)),Number(y.toFixed(4))])
 }
 
 function startRenderLoop() {
