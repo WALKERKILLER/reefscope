@@ -13,5 +13,7 @@ django-cors-headers==4.4.0
     # via -r backend/requirements-ci.in
 djangorestframework==3.15.2
     # via -r backend/requirements-ci.in
+pyyaml==6.0.3
+    # via -r backend/requirements-ci.in
 sqlparse==0.6.0
     # via django
