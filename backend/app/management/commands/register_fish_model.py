@@ -29,7 +29,7 @@ class Command(BaseCommand):
         if ModelVersion.objects.filter(pk=model_id).exists():
             raise CommandError("model_id_already_registered")
         # Loading pickle checkpoints is allowed only in this trusted operator command.
-        os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+        os.environ["YOLO_AUTOINSTALL"] = "false"
         from ultralytics import YOLO, __version__
         before = file_hash(path)
         model = YOLO(str(path))

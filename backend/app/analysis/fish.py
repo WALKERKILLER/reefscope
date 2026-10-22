@@ -15,7 +15,7 @@ from .storage import file_hash, input_video, write_json
 
 @lru_cache(maxsize=1)
 def load_model(path, digest, device):
-    os.environ.setdefault("YOLO_AUTOINSTALL", "false")
+    os.environ["YOLO_AUTOINSTALL"] = "false"
     from ultralytics import YOLO
     return YOLO(path).to(device)
 
@@ -26,11 +26,11 @@ def reset_trackers(model):
 
 
 def analyze(run, output, progress):
+    os.environ["YOLO_AUTOINSTALL"] = "false"
     import cv2
     import torch
     import ultralytics
 
-    os.environ.setdefault("YOLO_AUTOINSTALL", "false")
     weight = Path(run.model.weight_path)
     if not weight.is_file() or file_hash(weight) != run.config_snapshot["model_sha256"]:
         raise ValueError("model_hash_mismatch")
