@@ -15,7 +15,7 @@ from app.analysis.storage import artifact, attempt_directory, input_video, file_
 from app.models import AnalysisRun, ModelVersion, Task
 
 
-class RunTests(TestCase):
+class RunFixture:
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
@@ -32,6 +32,8 @@ class RunTests(TestCase):
         self.assertEqual(response.status_code, 202)
         return AnalysisRun.objects.get(pk=response.json()["run_id"])
 
+
+class RunTests(RunFixture, TestCase):
     def test_independent_runs_and_snapshots(self):
         first, second = self.enqueue(), self.enqueue()
         self.assertNotEqual(first.pk, second.pk)
