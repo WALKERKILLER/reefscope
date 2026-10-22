@@ -1,0 +1,52 @@
+{
+  "schema_version": "ocean-wall/v1-proposal",
+  "status": "illustrative_not_rendered",
+  "screen": "ecology_overview",
+  "analysis_run_id": "ad3f3ac7-2c16-4f4e-8aab-27a954c6d121",
+  "evaluation_run_id": null,
+  "site_id": null,
+  "dive_id": null,
+  "coordinate_space": "image_plane",
+  "camera_motion": "unknown",
+  "units_note": "fish screen-relative heatmap track-seconds, not geospatial fish density",
+  "theme": "ocean-dark-v1",
+  "data_freshness": null,
+  "metrics": [
+    {
+      "key": "fish_model_ap50_95",
+      "value": null,
+      "unit": "fraction",
+      "status": "not_evaluated",
+      "metric_source": "EvaluationRun",
+      "denominator": null,
+      "reason": "No held-out manual ground truth provided"
+    },
+    {
+      "key": "coral_bleached_fraction",
+      "value": null,
+      "unit": "fraction",
+      "status": "missing_roi",
+      "metric_source": "AnalysisRun",
+      "denominator": null,
+      "reason": "No approved benthic ROI"
+    },
+    {
+      "key": "fish_tracking_idf1",
+      "value": null,
+      "unit": "fraction",
+      "status": "not_evaluated",
+      "metric_source": "EvaluationRun",
+      "denominator": null,
+      "reason": "No MOT ID ground truth"
+    }
+  ],
+  "cards": [
+    "video_artplayer",
+    "fish_activity_heatmap",
+    "coral_mask_legend",
+    "model_quality",
+    "task_status",
+    "track_lifetime_chart"
+  ],
+  "warning": "Demo/contract only, no production dashboard or real numbers"
+}

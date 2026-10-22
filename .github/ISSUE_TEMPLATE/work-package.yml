@@ -1,0 +1,29 @@
+name: 工作包
+description: 认领一个可独立验收的研究或开发切片
+title: '[PKG] '
+body:
+  - type: textarea
+    id: ownership
+    attributes:
+      label: 负责人、工作包与目录边界
+      description: 对应 A/B/C/D/E，列出依赖任务和不能并行修改的路径。
+    validations:
+      required: true
+  - type: textarea
+    id: contract
+    attributes:
+      label: 输入、输出与方案
+      description: 关联契约和 fixture，用自己的话解释方案、替代选项及失败场景。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 可检查的验收条件
+      description: 给出测试、交互或科研证据，以及缺失数据时如何表示。
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: 权限、数据、许可与未解决问题

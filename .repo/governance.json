@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "owners": {
+    "instructions": "AGENTS.md",
+    "architecture": "docs/developers/architecture.md",
+    "testing": "docs/developers/testing.md",
+    "contracts": "docs/mvp/02-contracts.md",
+    "decisions": "docs/decisions/README.md"
+  },
+  "gates": [
+    ["python3", "scripts/validate_repository.py"],
+    ["python3", "docs/mvp/validate_fixtures.py"],
+    ["python3", "-m", "unittest", "discover", "-s", "tests"],
+    ["git", "diff", "--check"],
+    ["git", "diff", "--cached", "--check"]
+  ]
+}

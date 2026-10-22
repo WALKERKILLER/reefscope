@@ -1,0 +1,56 @@
+{
+  "schema_version": "fish-heatmap/v1",
+  "run_id": "ad3f3ac7-2c16-4f4e-8aab-27a954c6d121",
+  "coordinate_space": "image_plane",
+  "camera_motion": "unknown",
+  "width": 4,
+  "height": 3,
+  "weighting": "dwell_seconds",
+  "sampled_duration_seconds": 0.067,
+  "track_filter": "all",
+  "normalization": "max",
+  "interpretation": "已确认：按观察轨迹的时间加权画面占据热图，不是海底空间真实密度；模拟数据，不代表实际统计结果。",
+  "values_raw": [
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.033,
+      0.034,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "values_display": [
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.971,
+      1.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "value_unit": "track_seconds",
+  "algorithm_version": "imageplane-tracktime-v1-proposal",
+  "track_seconds_total": 0.067
+}

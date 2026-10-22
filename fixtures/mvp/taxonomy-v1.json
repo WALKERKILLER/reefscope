@@ -1,0 +1,78 @@
+{
+  "schema_version": "coral-health/v1",
+  "source_model": "EPFL-ECEO/segformer-b5-finetuned-coralscapesv2-1024-1024-95_class",
+  "mapping_status": "unreviewed_requires_expert",
+  "classes": [
+    {
+      "id": 0,
+      "key": "other_benthic_or_background"
+    },
+    {
+      "id": 1,
+      "key": "living_unbleached_coral"
+    },
+    {
+      "id": 2,
+      "key": "bleached_coral"
+    },
+    {
+      "id": 3,
+      "key": "dead_coral"
+    },
+    {
+      "id": 4,
+      "key": "algae_covered_coral"
+    },
+    {
+      "id": 5,
+      "key": "unknown_coral"
+    },
+    {
+      "id": 255,
+      "key": "ignore"
+    }
+  ],
+  "source_to_target_mapping": [],
+  "notes": "源模型 96 个通道，其中 ID0=void，1..95 是 95 个有效类。source0→target255，系统 target0=other；mapping_examples 仅为逐项核对过的局部例子而非完整生产级映射，专家必须复核全部 id2label。",
+  "source_model_num_logits": 96,
+  "source_num_valid_classes": 95,
+  "source_void_id": 0,
+  "source_void_target_ignore_id": 255,
+  "mapping_examples_unreviewed_not_production": [
+    {
+      "source_id": 0,
+      "source_label": "void / unlabeled",
+      "target_id": 255
+    },
+    {
+      "source_id": 2,
+      "source_label": "acropora alive",
+      "target_id": 1
+    },
+    {
+      "source_id": 3,
+      "source_label": "acropora bleached",
+      "target_id": 2
+    },
+    {
+      "source_id": 4,
+      "source_label": "acropora dead",
+      "target_id": 3
+    },
+    {
+      "source_id": 5,
+      "source_label": "algae covered brain coral",
+      "target_id": 4
+    },
+    {
+      "source_id": 25,
+      "source_label": "fish",
+      "target_id": 0
+    },
+    {
+      "source_id": 93,
+      "source_label": "water column",
+      "target_id": 0
+    }
+  ]
+}
