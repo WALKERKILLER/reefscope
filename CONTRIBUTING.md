@@ -14,7 +14,7 @@
 4. 按测试文档运行检查。PR 给出结果、未覆盖项、科研局限和 UI 截图或脱敏证据。
 5. 由另一名成员复核接口与测试；科研标签和指标须领域负责人复核。检查通过后 squash merge，清理短分支。
 
-以上吸收 VibeWise 的“先解释方案、再审查取舍、最后讲清改动”方法。个人 `.vibe-wise/` 学习笔记不共享，不强制成员安装插件。
+Agent 默认从仓库内 VibeWise Learn 载入设计指导与待确认状态。具体入口、暂停和直接实施方式见 [学习协作](docs/agents/learning-workflow.md)，无需全局安装插件。
 
 ## 合入标准
 
@@ -23,6 +23,10 @@
 - 提供模型/数据版本、评测集来源及缺失指标原因，不上传真实敏感数据。
 - CI 的 `repository`、`backend` 和 `frontend` 检查通过。维护者负责启用分支保护；没有远端保护时，本文只是团队约定。
 - Commit/PR 标题用简短英文类型，如 `feat: add fish track export`；说明可用中文。
+
+## Agent 与治理
+
+Core 由 [.repo-seed/manifest.json](.repo-seed/manifest.json) 管理。审查使用 repo-review，长期决策使用 repo-decisions，治理演进使用 repo-governance。提交前的总检查会调用上游门禁，格式/lifecycle 校验不会代替人工科研与语义审查。
 
 ## 文档同步
 

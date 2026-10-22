@@ -80,6 +80,7 @@ For backend checks without model inference, use a separate Python 3.12 environme
 - [Documentation index](docs/README.md) — the entry point for all project documentation.
 - [Developer guide](docs/developers/README.md) — setup, architecture, testing, and releases.
 - [MVP research](docs/mvp/README.md) — scientific scope, data contracts, and model proposals.
+- [Agent collaboration](docs/agents/learning-workflow.md) — repository-local VibeWise guidance and repo-seed governance.
 - [Work packages](docs/mvp/10-work-packages-and-integration.md) — module responsibilities and integration criteria.
 - [Milestones](https://github.com/WALKERKILLER/reefscope/milestones) and [tasks](https://github.com/WALKERKILLER/reefscope/issues?q=is%3Aissue%20is%3Aopen) — work to claim and review.
 

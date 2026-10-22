@@ -4,7 +4,7 @@
 
 ## Step 1: 从同一清单选择检查
 
-入口读取 `.repo/governance.json`，依次执行仓库结构检查、模拟数据检查、检查器单测和 Git 差异检查。本地与 CI 共用入口，避免两套检查逐渐分离。
+入口先调用 repo-seed 的 manifest 驱动 runner，检查治理文件、MADR/spec/复盘、链接和 placeholder；再执行项目公开边界、VibeWise 分发完整性、模拟数据和反例测试。本地与 CI 共用入口，避免两套检查逐渐分离。
 
 ## Step 2: 拒绝不应公开的文件
 

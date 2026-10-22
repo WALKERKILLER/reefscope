@@ -1,0 +1,12 @@
+ReefScope licensing status
+
+No project-wide license is granted by this file. Authorization for inherited
+application source remains to be confirmed. See docs/developers/provenance.md
+before copying or redistributing application code, models, or datasets.
+
+Third-party governance tools and learning guides retain their own MIT licenses:
+- .repo-seed/LICENSE.repo-seed.txt
+- .agents/skills/vibe-wise-learn/LICENSE.txt
+
+Those notices apply to the identified third-party material only; they do not
+relicense the inherited application source.

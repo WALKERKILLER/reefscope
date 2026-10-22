@@ -8,3 +8,6 @@
 - [披露规则](disclosure-policy.md)：公开与私有边界。
 - [运行排障](runtime-playbook.md) 和 [失败索引](failure-index.md)：已确认模式。
 - [长期经验](execution-log.md) 和 [机器可读约束](memory.json)：稳定事实。
+
+- [VibeWise 学习协作](learning-workflow.md)：会话引导、恢复和成员控制。
+- [repo-seed 治理维护](governance.md)：adoption 路径、版本与升级。
