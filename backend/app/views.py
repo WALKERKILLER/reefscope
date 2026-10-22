@@ -6,6 +6,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.utils.text import get_valid_filename
 from rest_framework import status
 from rest_framework.response import Response
@@ -116,11 +117,13 @@ def _run_task_action(task: Task, action: str, payload: dict | None = None) -> di
     action = str(action or "").strip().lower()
     payload = payload or {}
 
+    if action in {"delete", "rename"} and task.analysis_runs.exists():
+        raise ValueError("视频已被分析 Run 引用，不能删除或重命名。")
+
     if action == "delete":
-        _delete_media_file(task.uploaded_video_path)
-        _delete_media_file(task.result_video_path)
-        clear_runtime_progress(task.id)
+        source, result, task_id = task.uploaded_video_path, task.result_video_path, task.id
         task.delete()
+        transaction.on_commit(lambda: (_delete_media_file(source), _delete_media_file(result), clear_runtime_progress(task_id)))
         return None
 
     if action == "copy":
@@ -422,10 +425,10 @@ class TaskDetailView(APIView):
         except Task.DoesNotExist:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        _delete_media_file(task.uploaded_video_path)
-        _delete_media_file(task.result_video_path)
-        clear_runtime_progress(task.id)
-        task.delete()
+        try:
+            _run_task_action(task, "delete")
+        except (ValueError, ProtectedError):
+            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, task_id):
@@ -441,6 +444,8 @@ class TaskDetailView(APIView):
         try:
             with transaction.atomic():
                 result = _run_task_action(task, action, request.data)
+        except ProtectedError:
+            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -478,6 +483,8 @@ class TaskBatchActionView(APIView):
                     result = _run_task_action(task, action, request.data)
                     if result is not None:
                         results.append(result)
+        except ProtectedError:
+            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

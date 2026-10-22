@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import models
 
 
@@ -23,3 +25,28 @@ class Task(models.Model):
 
     def __str__(self):
         return f"{self.id} - {self.original_filename}"
+
+
+class ModelVersion(models.Model):
+    id = models.CharField(primary_key=True, max_length=80)
+    weight_path = models.CharField(max_length=1000)
+    sha256 = models.CharField(max_length=64)
+    labels = models.JSONField()
+    framework_version = models.CharField(max_length=40)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class AnalysisRun(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    task = models.ForeignKey(Task, on_delete=models.PROTECT, related_name="analysis_runs")
+    model = models.ForeignKey(ModelVersion, on_delete=models.PROTECT)
+    config_snapshot = models.JSONField()
+    status = models.CharField(max_length=12, default="queued", db_index=True)
+    progress = models.PositiveSmallIntegerField(default=0)
+    attempt = models.PositiveSmallIntegerField(default=0)
+    attempt_token = models.UUIDField(null=True, editable=False)
+    lease_expires_at = models.DateTimeField(null=True)
+    summary = models.JSONField(default=dict)
+    error_code = models.CharField(max_length=60, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)

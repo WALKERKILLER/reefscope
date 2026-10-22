@@ -4,7 +4,7 @@
 
 前端通过 `frontend/src/api.js` 上传视频，Django 的 `UploadVideoView` 创建 `Task`。`ProcessTaskView` 触发 `start_processing()`，后台线程调用 `run_detection()`。任务状态写入 SQLite，进度还依赖进程内字典。前端轮询任务并由 Artplayer 与 Canvas 展示结果。
 
-此处描述的是已读取的源码路径，完整模型推理尚需授权权重和真实样片验证。
+鱼类 v1 API 创建 `AnalysisRun`，注册的 `ModelVersion` 保存权重谱系。独立 `run_analysis_worker` 用数据库条件更新领取 Run；`app/analysis/fish.py` 顺序追踪，`storage.py` 管私有产物。此路径不使用旧 daemon Thread，运行方法见 [鱼类 Worker](fish-analysis.md)。
 
 ## 目录责任
 
@@ -17,6 +17,6 @@
 
 ## 设计边界
 
-本次基础修正统一默认模型路径、加入只读健康检查并限制 Gunicorn 为一个进程。单进程不能解决重启丢任务和重复处理，可靠 Worker 仍由 M0 交付。
+本次基础修正统一默认模型路径、加入只读健康检查并限制 Gunicorn 为一个进程。单进程不能解决重启丢任务和重复处理，v1 Run 使用独立 Worker、租约和 attempt token，旧检测路径仍有上述限制。
 
 新模块按 [MVP 架构](../mvp/01-architecture.md) 和 [工作包](../mvp/10-work-packages-and-integration.md) 逐步加入。尚未创建空壳 API 或假训练服务。旧的上传、处理、查询和配置接口继续保留。
