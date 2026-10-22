@@ -80,6 +80,7 @@ python3 scripts/check.py
 - [文档导航](docs/README.md)：全部项目文档的入口。
 - [开发指南](docs/developers/README.md)：环境、架构、测试与发布。
 - [MVP 研究](docs/mvp/README.md)：科研范围、数据契约与模型提案。
+- [Agent 协作](docs/agents/learning-workflow.md)：仓库内 VibeWise 指导与 repo-seed 治理。
 - [工作包](docs/mvp/10-work-packages-and-integration.md)：模块职责与集成验收。
 - [里程碑](https://github.com/WALKERKILLER/reefscope/milestones)与[任务](https://github.com/WALKERKILLER/reefscope/issues?q=is%3Aissue%20is%3Aopen)：认领和评审开发工作。
 

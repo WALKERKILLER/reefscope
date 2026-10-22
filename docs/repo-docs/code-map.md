@@ -2,7 +2,8 @@
 
 先读 [检查流程](walkthroughs/one-real-run.md)，再用以下位置定位修改。
 
-- `scripts/check.py:main`：执行 `.repo/governance.json` 清单；新增门禁先改清单。
+- `scripts/check.py:main`：编排上游治理门禁与项目专属证据。
+- `scripts/run-gates.mjs:runGates`：读取 `.repo-seed/manifest.json` 的治理 gate 分类，不手建第二份列表。
 - `scripts/validate_repository.py:validate`：文档入口、相对链接和 Git 可见文件边界。
 - `scripts/validate_repository.py:file_errors`：敏感路径与文件策略；反例在 `tests/test_repository_policy.py`。
 - `docs/mvp/validate_fixtures.py:check`：示例跨文件约束；输入在 `fixtures/mvp/`。

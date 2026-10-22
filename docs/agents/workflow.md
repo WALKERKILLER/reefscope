@@ -1,7 +1,9 @@
 # Agent 工作流
 
-读规则与相关实现，检查 Git 状态，明确验收后再修改。公共契约先评审，再同步 fixture 与调用方。只做任务必需的最小变更。
+每次从根 AGENTS 与 [文档导航](../README.md) 进入，读取相关实现，检查 Git 状态和验收边界。按 [VibeWise 协作模式](learning-workflow.md) 载入本地 Learn，恢复实际待确认决定；尊重成员的暂停/直接实施和既有授权。
 
-完成后运行 `python3 scripts/check.py` 与 [相关应用检查](../developers/testing.md)，检查差异与 Git 状态。交接报告实际改动、证据、未覆盖范围与风险；不得编造测试或运行结果。
+公共契约/权限/数据等风险变更使用 Approved spec；有真实替代取舍时用 repo-decisions，变更审查用 repo-review，治理演进用 repo-governance。细节由常驻 skill 负责，不在本页重复三套流程。
 
-文档按 [导航](../README.md) 定位 owner，只更新会误导后续读者的事实。学习笔记留在本地，任务状态留在 Issue/PR；仅稳定、可复用且脱敏的经验进入 Agent 知识。
+执行最小修改，完成后运行 `python3 scripts/check.py` 与 [相关应用检查](../developers/testing.md)，检查差异和 Git 状态。交接说明实际实现、对应设计、验证、缺口与风险。
+
+项目文档按 owner 更新；任务状态留 Issue/PR，个人理解/学习进度留忽略目录。长期知识只接纳脱敏、稳定、可复用结论，不从一次聊天推断项目事实。治理升级见 [维护流程](governance.md)。

@@ -4,7 +4,7 @@
 
 每个 PR 和 main 推送运行 CI：仓库规则与 fixture、Django Web 层检查/测试、Vue 构建、Compose 语法检查。第三方 Actions 固定完整 SHA，默认 token 只读；PR 不获得包发布权限。
 
-治理检查清单位于 `.repo/governance.json`，本地与 CI 共用 `python3 scripts/check.py`。这是吸收 repo-seed 原则的项目内最小实现，不冒充上游生成器或其可升级 manifest。
+治理事实源位于 `.repo-seed/manifest.json`；`scripts/run-gates.mjs` 使用上游 verifier，`python3 scripts/check.py` 编排上游门禁与项目专属检查，本地与 CI 共用。
 
 ## 手动发布
 

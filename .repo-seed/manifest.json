@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "repoSeedVersion": "0.6.5",
+  "lastSyncCommit": null,
+  "config": {
+    "license": "UNLICENSED",
+    "branchConvention": "main",
+    "monorepo": false
+  },
+  "governance": {
+    "paths": {
+      "architecture": "docs/developers/architecture.md",
+      "testing": "docs/developers/testing.md",
+      "decisions": "docs/adr",
+      "specs": "docs/specs",
+      "postmortems": "docs/postmortems"
+    },
+    "externalSources": {}
+  },
+  "capabilities": {
+    "version": 1,
+    "items": {
+      "baseline": {
+        "state": "enabled"
+      },
+      "spec": {
+        "state": "enabled",
+        "mode": "repo"
+      },
+      "decisions": {
+        "state": "enabled"
+      },
+      "postmortems": {
+        "state": "enabled"
+      },
+      "ci": {
+        "state": "external",
+        "assessmentHash": "75fced88632984ba6c9c9c6d1063be1b2f39328c0a055e183f1ef3c73cdbbc6f",
+        "reason": "existing repository mechanism detected during adoption"
+      },
+      "community": {
+        "state": "external",
+        "assessmentHash": "d44dcac89da4e5600f91a8592ea53646aa4a021b840bb8090a402abdce2e6609",
+        "reason": "existing repository mechanism detected during adoption"
+      },
+      "codeowners": {
+        "state": "external",
+        "assessmentHash": "616da5537712603b5c9e391e1c2ffa0781463cf188a0a9be3f0ef33e8d10ac82",
+        "reason": "existing repository mechanism detected during adoption"
+      },
+      "hook": {
+        "state": "deferred",
+        "reason": "No Git hook installation authorized; shared CI and CLI gates are in use.",
+        "assessmentHash": "c089576a2cd9274c313fa1b8aa371b637a1ceab9dc15541ce648141bbe815bb1"
+      },
+      "monorepo": {
+        "state": "deferred",
+        "reason": "Root governance covers backend/frontend; subtree policy deferred until distinct package rules are needed.",
+        "assessmentHash": "5acff04a918585ade6a8960f9cc5668be06e98571a9ae5602540d1cfdb8a020b"
+      }
+    }
+  },
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "7abf2843bf2d3e01e9799e3634d8c281e233946a26d936e71b5745766efb8e8b",
+      "category": "instruction",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "CLAUDE.md",
+      "sha256": "573138e19d3359c451b7898112a03167e4e7bf356ecd698dc87d933d37de0b96",
+      "category": "instruction",
+      "capability": "baseline"
+    },
+    {
+      "path": "docs/AGENTS.md",
+      "sha256": "d013fab1e04516ab1e457084ca438df8bfc27f25b88b771d2745418065198ff6",
+      "category": "docs",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "docs/development.md",
+      "sha256": "9ac3f78f4c955eb4f10b522428826e4cea1225b5f61bf83f594916af78bcdd01",
+      "category": "docs",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".agents/skills/repo-review/SKILL.md",
+      "sha256": "eb1b1221298f63837aaa8d49c3d1fb4740efd84851f3ef70ea3c2c853b9f23d6",
+      "category": "skill",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".agents/skills/repo-governance/SKILL.md",
+      "sha256": "b3fabb95d7b93c6258b59297ad7245b5b16f9ed16c614be7bb394c97215a846c",
+      "category": "skill",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/capabilities.mjs",
+      "sha256": "5a10706df3211b62365a58e8d2a61f2b6b2b799f31f5b78188f45405fb86dd38",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/governance-config.mjs",
+      "sha256": "37f39619b0aa082d0107d1c8d91144489c89b01f1b31602d40dc0b3f2500138e",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/audit-governance.mjs",
+      "sha256": "8e3bb2c6aa8b66a2d95a5170c9a8c7ea13eec79fc5de71613441ef17212a6e6c",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/run-gates.mjs",
+      "sha256": "7442033b0a7239fa5bdb5afe91cf1018c9549e2b21be8ee6f595f524be84ed4c",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-doc-links.mjs",
+      "sha256": "5502500d5f09a60b2aebcc23a5ffdffd876434b4927863035e612baefc44b653",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-placeholders.mjs",
+      "sha256": "c8cb05ce91cd15864e1c803327be4c1ddb9c7a4c836f73aa311f02a881c3f961",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/verify-manifest.mjs",
+      "sha256": "0be76f51cc1c873296ef49fe04d79b6370fab6f0c9d723fcfb22cb6966aeca68",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "scripts/install-hooks.mjs",
+      "sha256": "fbb14a4889e322ddc4ce326a953c286b70ab881cfbbb8beab9a7bc237dc3b7e8",
+      "category": "gate",
+      "capability": "baseline"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "sha256": "3425db7ca6ce6e33f7218aac2f5aa2f0225f9185b6fc44819b5e896380d62141",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "145b0ddcb79ce8940fd11bc9317d4bac114ae01655bb450642a5f915866ef69e",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".editorconfig",
+      "sha256": "0236baaa876eef2fbe3d4a9b01aac87d148b925fac3f58e1bc0cc9819ed88dab",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".gitattributes",
+      "sha256": "0513f4f3f57956b5b2b347d921cf26a746a12ad3282edaab33e2a6929aff0157",
+      "category": "meta",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".repo-seed/update-strategy.md",
+      "sha256": "59e7398379df413e36eb508fb1637f787afff55fe5635adc262f2b914a16e686",
+      "category": "meta",
+      "capability": "baseline"
+    },
+    {
+      "path": ".github/pull_request_template.md",
+      "sha256": "f6b721fee59048ec7010208badf3ff459344f40924efb5999756750437d89ca2",
+      "category": "github",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug.md",
+      "sha256": "6b4bec5d645a02e74a9b61629e0bcaf6bfd0e0cbe0b4778c638d30c407a762d7",
+      "category": "github",
+      "capability": "baseline",
+      "userModified": true
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature.md",
+      "sha256": "328dc950ab01003d7e41495f37407eb07f6828f9bc5ffe6053590f2a6f7d53eb",
+      "category": "github",
+      "capability": "baseline"
+    },
+    {
+      "path": "docs/specs/README.md",
+      "sha256": "8be78a47a00645d9e3ab459901eccaf46d2f6dbc06eb119741c50b4e0b2dea9d",
+      "category": "docs",
+      "capability": "spec",
+      "userModified": true
+    },
+    {
+      "path": "scripts/verify-specs.mjs",
+      "sha256": "951c7e29af4b0b9b0c5e43aaa9c6b0520f25538c3ce45acdd5cb3e5ba39082c8",
+      "category": "gate",
+      "capability": "spec"
+    },
+    {
+      "path": ".agents/skills/repo-decisions/SKILL.md",
+      "sha256": "96d5ab6e9d65d8943e9128456e71a2bfa2f69675d639c7ee1b36ed6c5348a355",
+      "category": "skill",
+      "capability": "decisions"
+    },
+    {
+      "path": "scripts/verify-decisions.mjs",
+      "sha256": "576adf85c3bfaf49224b968d8e067de6d2492eacba7a6ff3acdf5ef3b59db79c",
+      "category": "gate",
+      "capability": "decisions"
+    },
+    {
+      "path": "docs/postmortems/README.md",
+      "sha256": "8a380135344bf3c742727ae80cbd93df01ebbe1f91a8323a18e96f7717e1e889",
+      "category": "docs",
+      "capability": "postmortems",
+      "userModified": true
+    },
+    {
+      "path": "scripts/verify-postmortems.mjs",
+      "sha256": "ca7f293805914ada56a9656f1595e5a010ab3c7febdf61b5bf9673b91bbbc7cb",
+      "category": "gate",
+      "capability": "postmortems"
+    }
+  ],
+  "artifactPolicy": {
+    "version": 1,
+    "legacy": []
+  }
+}

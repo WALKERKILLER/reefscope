@@ -47,3 +47,6 @@ backend/staticfiles/
 backend/media/*
 !backend/media/uploads/
 !backend/media/results/
+
+# VibeWise legacy local state
+.sensible-vibes/

@@ -3,7 +3,7 @@
 ## Traversal
 
 - Pass 1：读取旧应用入口、模型、路由、依赖与容器，识别既有行为及静态审计边界。
-- Pass 2：对照治理清单、fixture 检查器、反例测试和 CI，确认新成员基础检查路径。
+- Pass 2：对照 repo-seed manifest、常驻 skills 与 VibeWise 分发清单、fixture 检查器、反例测试和 CI，确认新成员基础检查路径。
 
 覆盖治理与示例契约；不覆盖真实视频推理、GPU 性能和大屏交互。
 

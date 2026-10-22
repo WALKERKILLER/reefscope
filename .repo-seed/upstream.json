@@ -1,0 +1,68 @@
+{
+  "repo_seed": {
+    "repository": "https://github.com/EricSanchezok/repo-seed",
+    "commit": "559b84dec5c7c495df274820b4b2e6c611d304b3",
+    "version": "0.6.5",
+    "license": ".repo-seed/LICENSE.repo-seed.txt",
+    "adaptations": [
+      "AGENTS and project documentation preserve repository ownership and scientific limits",
+      "repo-review keeps the universal core; project blocking/manual checks are instantiated",
+      "Architecture/testing use adopted paths; local MADR records retain their numeric identity",
+      "Root LICENSE and manifest UNLICENSED do not relicense application source"
+    ]
+  },
+  "vibe_wise": {
+    "repository": "https://github.com/nykooi1/vibe-wise",
+    "commit": "eefb53df406ab89e31444684ff32c1df205221f8",
+    "version": "0.1.44",
+    "license": ".agents/skills/vibe-wise-learn/LICENSE.txt",
+    "files": [
+      {
+        "upstream_path": "skills/learn/SKILL.md",
+        "path": ".agents/skills/vibe-wise-learn/SKILL.md",
+        "upstream_sha256": "b65405a8874d588a16b59b57cd29aa0d02298993ef4d586c2a39bce315e9d0df",
+        "sha256": "5b559261902b335a627e1cbd16fa0ed6346287c8ba9dbedbf197c6f69efde00a",
+        "adapted": true
+      },
+      {
+        "upstream_path": "skills/learn/behavior.md",
+        "path": ".agents/skills/vibe-wise-learn/behavior.md",
+        "upstream_sha256": "910e0f780373613f0ca18c2475e8b497adec222ba24a44672eeda6bb0f1a51f7",
+        "sha256": "910e0f780373613f0ca18c2475e8b497adec222ba24a44672eeda6bb0f1a51f7",
+        "adapted": false
+      },
+      {
+        "upstream_path": "skills/learn/codex.md",
+        "path": ".agents/skills/vibe-wise-learn/codex.md",
+        "upstream_sha256": "55908f71130247f1548e44e1b68696706ca3780bed9de8ae4a84937f2eb4eaf2",
+        "sha256": "6648f833095c385ca22c0ad455efc31ecd19881d4b85725d604cffc2651c433f",
+        "adapted": true
+      },
+      {
+        "upstream_path": "skills/learn/onboarding.md",
+        "path": ".agents/skills/vibe-wise-learn/onboarding.md",
+        "upstream_sha256": "76cbb9c15dde7aa37f2feec17d000c2495b3a90533f991c30d2bdedb0caffd48",
+        "sha256": "76cbb9c15dde7aa37f2feec17d000c2495b3a90533f991c30d2bdedb0caffd48",
+        "adapted": false
+      },
+      {
+        "upstream_path": "skills/learn/state-templates.md",
+        "path": ".agents/skills/vibe-wise-learn/state-templates.md",
+        "upstream_sha256": "bd80876d40d88ef4fe5a47f7e68dbeebebb84d68990f62d7529b721e2c1a6e97",
+        "sha256": "bd80876d40d88ef4fe5a47f7e68dbeebebb84d68990f62d7529b721e2c1a6e97",
+        "adapted": false
+      },
+      {
+        "upstream_path": "skills/learn/agents/openai.yaml",
+        "path": ".agents/skills/vibe-wise-learn/agents/openai.yaml",
+        "upstream_sha256": "0880a0f9b7d5da473efc1cfba1f0bdcf171deff0bd1018fd8ca6dbb93057b78b",
+        "sha256": "0880a0f9b7d5da473efc1cfba1f0bdcf171deff0bd1018fd8ca6dbb93057b78b",
+        "adapted": false
+      }
+    ],
+    "adaptations": [
+      "Learn skill name is vibe-wise-learn",
+      "Codex commands, local path and AGENTS restoration entry are adapted; learning behavior remains upstream"
+    ]
+  }
+}

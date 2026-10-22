@@ -8,11 +8,13 @@ MVP 文档与 fixture 来自用户提供的 `sitp-mvp-v2-research-20261021.zip`�
 
 ## 协作规范来源
 
-- [repo-seed](https://github.com/EricSanchezok/repo-seed)：采用单一规则入口、风险触发 spec、MADR 决策和可执行门禁。项目采用适配实现，不安装 hook，不宣称由其生成器管理。
-- [repo-docs-skills](https://github.com/YurunChen/repo-docs-skills)：采用行为导读、证据索引和最小文档同步；不把计划当实现。
-- [VibeWise](https://github.com/nykooi1/vibe-wise)：采用成员先解释方案、审查取舍和实施后复述，不强制安装学习插件。
+- repo-seed：通过固定 revision 的上游 scaffold 正式 adoption；Core scripts 和常驻 skills 随仓库分发，项目政策实例化后标记 user-owned。
+- VibeWise：内嵌 Learn 及其 guides/Codex 适配，以根 AGENTS/CLAUDE 路由进入，不要求全局插件或 hook。
+- [repo-docs-skills](https://github.com/YurunChen/repo-docs-skills)：行为导读、证据索引与最小文档同步。
 
-规范参考检索于 2026-10-22。上述内容是项目化改写，未拷贝上游脚本或模板。
+精确 revision、版本、文件摘要和适配位置由 [.repo-seed/upstream.json](../../.repo-seed/upstream.json) 管理。Learn 仅改 skill 名称与 Codex 的本地路径、调用名与仓库入口恢复说明；行为、onboarding 和状态模板保持上游内容。repo-review 的 Universal core 保持原文，项目风险部分由本项目规则与源码实例化。
+
+[repo-seed MIT](../../.repo-seed/LICENSE.repo-seed.txt) 与 [VibeWise MIT](../../.agents/skills/vibe-wise-learn/LICENSE.txt) 保留各自版权，仅覆盖相应分发材料，不为继承应用授予 MIT。
 
 ## 模型、数据与依赖
 
