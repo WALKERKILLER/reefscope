@@ -1,13 +1,14 @@
 from django.urls import path
 
 from .health import health
-from .analysis.api import Models, TaskRuns, RunDetail, Retry, Tracks, Heatmap
+from .analysis.api import Models, TaskRuns, RunDetail, Retry, Tracks, Heatmap, Summary
 
 from .views import PipelineConfigView, ProcessTaskView, TaskBatchActionView, TaskDetailView, TaskListView, UploadVideoView
 
 urlpatterns = [
     path("v1/analysis-runs/<uuid:run_id>/tracks", Tracks.as_view(), name="analysis-tracks"),
     path("v1/analysis-runs/<uuid:run_id>/heatmap", Heatmap.as_view(), name="analysis-heatmap"),
+    path("v1/analysis-runs/<uuid:run_id>/summary", Summary.as_view(), name="analysis-summary"),
     path("v1/models", Models.as_view(), name="analysis-models"),
     path("v1/tasks/<int:task_id>/analysis-runs", TaskRuns.as_view(), name="analysis-runs"),
     path("v1/analysis-runs/<uuid:run_id>", RunDetail.as_view(), name="analysis-detail"),
