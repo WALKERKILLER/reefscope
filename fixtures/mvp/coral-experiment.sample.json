@@ -1,0 +1,32 @@
+{
+  "schema_version": "coral-experiment/v1-proposal",
+  "status": "illustrative_not_executed",
+  "experiment_id": "coral-pilot-B0-placeholder",
+  "baseline_model": "EPFL-ECEO/segformer-b5-finetuned-coralscapesv2-1024-1024-95_class",
+  "training_mode": "zero_finetune",
+  "num_source_logits": 96,
+  "source_void_id": 0,
+  "target_classes": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "target_ignore_index": 255,
+  "data_version": "pilot-v001-placeholder",
+  "split": "heldout_site",
+  "seed": 42,
+  "taxonomy_mapping_version": "pending_expert_review",
+  "planned_metrics": [
+    "mIoU_macro_6_valid",
+    "bleached_f1",
+    "bleached_recall",
+    "dead_bleached_confusion",
+    "latency_ms",
+    "peak_vram_mb"
+  ],
+  "measured_metrics": null,
+  "warning": "此为实验记录字段示意，未运行实验，不可引用精度"
+}

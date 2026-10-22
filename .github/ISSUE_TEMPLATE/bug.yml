@@ -1,0 +1,21 @@
+name: 缺陷
+description: 提交脱敏的可复现问题
+title: '[Bug] '
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤、预期和实际行为
+      description: 使用虚构输入；不要贴原始日志、私有视频或凭据。
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: 提交版本与相关模块
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 脱敏证据与影响

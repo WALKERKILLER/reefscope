@@ -1,0 +1,8 @@
+[pipeline]
+model_path = "models/model_best.pt"
+target_labels = ["fish"]
+confidence_threshold = 0.60
+iou_threshold = 0.45
+frame_stride = 1
+batch_size = 20
+use_half = false

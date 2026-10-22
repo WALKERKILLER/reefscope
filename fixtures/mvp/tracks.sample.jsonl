@@ -1,0 +1,3 @@
+{"run_id":"ad3f3ac7-2c16-4f4e-8aab-27a954c6d121","track_id":12,"frame":0,"timestamp_ms":0,"class_id":0,"label":"fish","confidence":0.92,"bbox_xywhn":[0.41,0.31,0.12,0.08],"center_xyn":[0.47,0.35],"observed":true}
+{"run_id":"ad3f3ac7-2c16-4f4e-8aab-27a954c6d121","track_id":12,"frame":1,"timestamp_ms":33,"class_id":0,"label":"fish","confidence":0.93,"bbox_xywhn":[0.42,0.31,0.12,0.08],"center_xyn":[0.48,0.35],"observed":true}
+{"run_id":"ad3f3ac7-2c16-4f4e-8aab-27a954c6d121","track_id":12,"frame":2,"timestamp_ms":67,"class_id":0,"label":"fish","confidence":0.89,"bbox_xywhn":[0.43,0.31,0.12,0.08],"center_xyn":[0.49,0.35],"observed":true}

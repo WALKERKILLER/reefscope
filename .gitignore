@@ -1,0 +1,49 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.log
+.tmp*/
+backend/.tmp*/
+
+# Django / sqlite
+backend/db.sqlite3
+backend/media/uploads/*
+backend/media/results/*
+!backend/media/uploads/.gitkeep
+!backend/media/results/.gitkeep
+
+# Node / Vite
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# OMC / 工作状态
+.omc/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Private research inputs and local tooling
+.local/
+.vibe-wise/
+.env
+.env.*
+!.env.example
+*.zip
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.mp4
+*.mov
+*.avi
+*.sqlite3
+backend/staticfiles/
+backend/media/*
+!backend/media/uploads/
+!backend/media/results/

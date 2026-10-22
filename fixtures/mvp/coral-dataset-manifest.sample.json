@@ -1,0 +1,34 @@
+{
+  "schema_version": "coral-dataset/v1-proposal",
+  "dataset_version": "pilot-v001-placeholder",
+  "status": "illustrative_not_real",
+  "taxonomy_version": "coral-health/v1",
+  "source_taxonomy": "coralscapesv2-95",
+  "source_void_id": 0,
+  "target_ignore_id": 255,
+  "split_unit": "site/dive/parent_video",
+  "split_policy": "never split neighboring frames from one parent_video across splits",
+  "sampling_policy": {
+    "interval_seconds": [
+      2,
+      5
+    ],
+    "additional_hard_negatives": true,
+    "quality_review_required": true
+  },
+  "samples": [
+    {
+      "sample_id": "sample-placeholder-01",
+      "parent_video_id": "video-placeholder-A",
+      "site_id": "site-placeholder-A",
+      "dive_id": "dive-placeholder-A",
+      "timestamp_ms": 4000,
+      "split": "train",
+      "image_sha256": "<sha256-on-ingest>",
+      "image_path": "images/example.png",
+      "mask_path": "masks/example.png",
+      "mask_review_status": "not_reviewed"
+    }
+  ],
+  "warning": "演示协议示例，不代表已有训练数据、标注或真实样本"
+}

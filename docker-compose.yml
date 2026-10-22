@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    gpus: all
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend/media:/app/media
+      - ./backend/models:/app/models:ro
+      - ./backend/db.sqlite3:/app/db.sqlite3
+    environment:
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-demo-only-underwater-fish-detection}
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-true}
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-*}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:18080,http://127.0.0.1:18080,http://localhost:5173,http://127.0.0.1:5173}
+      - DJANGO_SETTINGS_MODULE=config.settings
+      - PYTHONUNBUFFERED=1
+      - YOLO_MODEL_PATH=${YOLO_MODEL_PATH:-/app/models/model_best.pt}
+      - YOLO_DEVICE=${YOLO_DEVICE:-cuda:0}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=
+        - VITE_DEFAULT_MODEL_PATH=${VITE_DEFAULT_MODEL_PATH:-/app/models/model_best.pt}
+        - VITE_DEFAULT_TARGET_LABELS=${VITE_DEFAULT_TARGET_LABELS:-fish}
+        - VITE_DEFAULT_CONFIDENCE_THRESHOLD=${VITE_DEFAULT_CONFIDENCE_THRESHOLD:-0.25}
+        - VITE_DEFAULT_IOU_THRESHOLD=${VITE_DEFAULT_IOU_THRESHOLD:-0.45}
+        - VITE_DEFAULT_FRAME_STRIDE=${VITE_DEFAULT_FRAME_STRIDE:-5}
+    ports:
+      - "127.0.0.1:18080:18080"
+    depends_on:
+      - backend
+    restart: unless-stopped

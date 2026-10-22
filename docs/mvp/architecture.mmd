@@ -1,0 +1,36 @@
+flowchart LR
+    U["上传 MP4 / VideoAsset"] --> API["Django REST API"]
+    API --> RUN[("AnalysisRun / SQLite")]
+    RUN --> WORKER["独立分析 Worker"]
+    WORKER --> FISH["现有 YOLO 检测权重"]
+    FISH --> MOT["ByteTrack / BoT-SORT"]
+    MOT --> TRACKS["轨迹 JSONL + 画面热图 track-seconds"]
+    WORKER --> CORAL["CoralscapesV2 SegFormer-B5"]
+    CORAL --> MASK["六类分割 Mask PNG"]
+    TRACKS --> STATS["指标与导出"]
+    MASK --> STATS
+    TRACKS --> STORE[("Versioned Artifacts")]
+    MASK --> STORE
+    STATS --> STORE
+    STORE --> WEB["Vue / Artplayer / Canvas overlays"]
+    API <--> WEB
+    ML["离线标注与微调 CVAT + PyTorch"] --> REG[("ModelVersion")]
+    REG --> WORKER
+    TRACKS --- DECISION["已确认: image_plane, 非海底 GIS"]
+    MASK --- MAPPING["96 logits: source0 void → target255"]
+
+    VIDEOFRAME["视频关键帧 / Site metadata"] --> PREANN["可选 VLM-AutoYOLO / SAM 伪标签"]
+    PREANN --> REVIEW["CVAT 人工复核 + provenance"]
+    REVIEW --> DATASET[("DatasetVersion 冻结 split")]
+    DATASET --> ML
+    ML --> TRUN[("TrainingRun")]
+    TRUN --> EVAL["独立 EvalRunner / fish + MOT + coral"]
+    DATASET --> EVAL
+    EVAL --> ERUN[("EvaluationRun / metrics truth")]
+    ERUN --> REPORT["TrainingReport 七章节 / AI 仅叙述"]
+    ERUN --> REG
+    STORE --> WALL["Vue3 Ocean Wall / Artplayer+ECharts"]
+    ERUN --> WALL
+    REPORT --> WALL
+    WEB --> WALL
+    WALL --- UINOTE["已确认：信息大屏最终样式"]

@@ -1,0 +1,70 @@
+{
+  "schema_version": "training-report/v1-proposal",
+  "status": "illustrative_not_executed",
+  "report_id": "rpt-example-NOT-RUN",
+  "training_run_id": "train-placeholder-001",
+  "evaluation_run_id": "eval-placeholder-001",
+  "task_type": "fish_detection",
+  "source": "yolo-report-analyst-seven-part-outline",
+  "source_license": "MIT",
+  "model_version_id": "fish-model-placeholder",
+  "model_sha256": null,
+  "training_dataset_version": "fish-dataset-placeholder",
+  "evaluation_dataset_version": "heldout-site-placeholder",
+  "evaluation_protocol_id": "fish-detect-ap-v1-proposal",
+  "train_git_sha": null,
+  "best_checkpoint_selection_basis": "training_framework_fitness_not_assumed_map50",
+  "report_template_version": "sitp-eval-report-v1",
+  "ai_diagnostic_enabled": false,
+  "metrics": {
+    "ap50": {
+      "value": null,
+      "unit": "fraction",
+      "status": "missing_gt",
+      "metric_source": "deterministic_evaluator"
+    },
+    "ap50_95": {
+      "value": null,
+      "unit": "fraction",
+      "status": "missing_gt",
+      "metric_source": "deterministic_evaluator"
+    },
+    "precision": {
+      "value": null,
+      "unit": "fraction",
+      "status": "missing_gt",
+      "metric_source": "deterministic_evaluator"
+    },
+    "recall": {
+      "value": null,
+      "unit": "fraction",
+      "status": "missing_gt",
+      "metric_source": "deterministic_evaluator"
+    },
+    "fps_end_to_end": {
+      "value": null,
+      "unit": "frames_per_second",
+      "status": "not_measured",
+      "metric_source": "hardware_benchmark"
+    }
+  },
+  "missing_inputs": [
+    "ground_truth_bbox",
+    "model_weights_sha256",
+    "evaluation_video_split",
+    "hardware_benchmark"
+  ],
+  "sections": [
+    "config_and_data",
+    "baseline_comparison",
+    "training_curves",
+    "confusion_and_errors",
+    "efficiency",
+    "diagnostics",
+    "reproducibility"
+  ],
+  "warnings": [
+    "SYNTHETIC CONTRACT ONLY: no actual model was evaluated",
+    "Train/val best metrics must not be presented as held-out test performance"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "analysis-run/v1",
+  "run_id": "ad3f3ac7-2c16-4f4e-8aab-27a954c6d121",
+  "task_id": 1,
+  "kind": "joint",
+  "status": "completed",
+  "progress": 100,
+  "models": {
+    "fish": "fish-detector:original-v1",
+    "coral": "coral-segformer-v2:baseline-95"
+  },
+  "settings": {
+    "tracker": "bytetrack",
+    "tracking_frame_stride": 1,
+    "coral_sample_every_seconds": 2,
+    "heatmap": {
+      "coordinate_space": "image_plane",
+      "weighting": "dwell_seconds"
+    }
+  },
+  "artifacts": {
+    "tracks": "tracks.sample.jsonl",
+    "heatmap": "heatmap.sample.json",
+    "taxonomy": "taxonomy-v1.json"
+  },
+  "summary": {
+    "track_count": 1,
+    "track_count_unit": "tracked_id_not_fish_population",
+    "coral_bleached_fraction": null,
+    "coral_bleached_fraction_reason": "no verified benthic ROI/mask in this fixture"
+  },
+  "limitations": [
+    "画面坐标并非地理坐标",
+    "无珊瑚专家真值不输出白化率"
+  ]
+}

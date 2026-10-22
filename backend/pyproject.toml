@@ -1,0 +1,9 @@
+[project]
+name = "reefscope-backend"
+version = "0.1.0"
+description = "Django backend for ReefScope"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[tool.uv]
+package = false
