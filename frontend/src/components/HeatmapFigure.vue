@@ -2,13 +2,14 @@
   <figure class="figure" :class="{ compact, fill }">
     <figcaption>
       <div class="cap-row">
-        <h3>停留热图</h3>
+        <h3 v-if="!bare">停留热图</h3>
+        <p v-else class="note tnum" :title="`每格停留时间（track-s），颜色按窗口峰值线性映射`">{{ heatmap.width }}×{{ heatmap.height }} 格 · 峰值 {{ peak.toFixed(2) }} · 合计 {{ heatmap.track_seconds_total.toFixed(1) }} track-s</p>
         <label class="frame-toggle"><UiSwitch v-model="showFrame" />当前帧底图</label>
       </div>
-      <p class="note">画面坐标 {{ heatmap.width }}×{{ heatmap.height }} 格 · 每格停留时间（track-s）· 合计 <span class="tnum">{{ heatmap.track_seconds_total.toFixed(1) }}</span> track-s</p>
+      <p v-if="!bare" class="note">画面坐标 {{ heatmap.width }}×{{ heatmap.height }} 格 · 每格停留时间（track-s）· 合计 <span class="tnum">{{ heatmap.track_seconds_total.toFixed(1) }}</span> track-s</p>
     </figcaption>
     <div ref="host" class="plot" role="img" :aria-label="`停留热图，峰值 ${peak.toFixed(2)} track-s，合计 ${heatmap.track_seconds_total.toFixed(1)} track-s，画面坐标而非地理坐标`" />
-    <p class="note foot">空白格为 0。颜色按窗口峰值线性映射（inferno），非海底地理密度。</p>
+    <p v-if="!bare" class="note foot">空白格为 0。颜色按窗口峰值线性映射（inferno），非海底地理密度。</p>
   </figure>
 </template>
 
@@ -19,7 +20,7 @@ import { useChart } from '../charts/useChart'
 import { INFERNO } from '../lib/palette'
 import { captureFrame } from '../lib/playback'
 
-const props = defineProps({ heatmap: { type: Object, required: true }, roi: { type: Array, default: null }, aspect: { type: Number, default: 16 / 9 }, compact: Boolean, fill: Boolean })
+const props = defineProps({ heatmap: { type: Object, required: true }, roi: { type: Array, default: null }, aspect: { type: Number, default: 16 / 9 }, compact: Boolean, fill: Boolean, bare: Boolean })
 const host = ref(null)
 const showFrame = ref(true)
 const peak = computed(() => Math.max(0, ...props.heatmap.values_raw.flat()))
@@ -72,10 +73,11 @@ onMounted(refresh)
 .figure { display: flex; flex-direction: column; gap: 6px; margin: 0; }
 h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .cap-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.frame-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); color: var(--ink-3); cursor: pointer; }
+.cap-row .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-caption); }
+.frame-toggle { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); color: var(--ink-3); cursor: pointer; }
 .plot { width: 100%; aspect-ratio: 16 / 10; min-height: 160px; }
 .compact .plot { aspect-ratio: 16 / 11; }
 .foot { font-size: var(--text-caption); }
 .fill { flex: 1; min-height: 0; }
-.fill .plot { flex: 1; aspect-ratio: auto; min-height: 140px; }
+.fill .plot { flex: 1; aspect-ratio: auto; min-height: 88px; }
 </style>
