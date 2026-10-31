@@ -2,14 +2,15 @@
   <figure class="figure" :class="{ fill }">
     <figcaption>
       <div class="cap-row">
-        <h3>轨迹图</h3>
+        <h3 v-if="!bare">轨迹图</h3>
+        <p v-else class="note"><span class="tnum">{{ shown.length.toLocaleString('zh-CN') }}</span> 条 · 窗口 {{ windowText }}</p>
         <label class="frame-toggle"><UiSwitch v-model="showFrame" />当前帧底图</label>
       </div>
-      <p class="note">画面坐标 · <span class="tnum">{{ shown.length.toLocaleString('zh-CN') }}</span> 条轨迹（窗口 {{ windowText }}）· 空心点为起点，实心点为终点</p>
+      <p v-if="!bare" class="note">画面坐标 · <span class="tnum">{{ shown.length.toLocaleString('zh-CN') }}</span> 条轨迹（窗口 {{ windowText }}）· 空心点为起点，实心点为终点</p>
     </figcaption>
     <div ref="host" class="plot" role="img" :aria-label="`轨迹图，${shown.length} 条轨迹，画面坐标`" />
     <p v-if="truncated" class="note warn-text">观测超过显示上限，图中只含前 20,000 条。</p>
-    <p class="note foot">颜色只用于区分相邻轨迹，以 # 编号为准；同一 ID 断开超过允许间隔后分段绘制。</p>
+    <p v-if="!bare" class="note foot">颜色只用于区分相邻轨迹，以 # 编号为准；同一 ID 断开超过允许间隔后分段绘制。</p>
   </figure>
 </template>
 
@@ -21,7 +22,7 @@ import { trackColor } from '../lib/palette'
 import { captureFrame } from '../lib/playback'
 import { isDark } from '../lib/theme'
 
-const props = defineProps({ spans: { type: Array, default: () => [] }, window: { type: Object, default: () => ({ start_ms: 0 }) }, roi: { type: Array, default: null }, aspect: { type: Number, default: 16 / 9 }, truncated: Boolean, compact: Boolean, fill: Boolean })
+const props = defineProps({ spans: { type: Array, default: () => [] }, window: { type: Object, default: () => ({ start_ms: 0 }) }, roi: { type: Array, default: null }, aspect: { type: Number, default: 16 / 9 }, truncated: Boolean, compact: Boolean, fill: Boolean, bare: Boolean })
 const host = ref(null)
 const showFrame = ref(false)
 let frame = null
@@ -89,10 +90,11 @@ onMounted(refresh)
 .figure { display: flex; flex-direction: column; gap: 6px; margin: 0; }
 h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .cap-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.frame-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); color: var(--ink-3); cursor: pointer; }
+.cap-row .note { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-caption); }
+.frame-toggle { flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-caption); color: var(--ink-3); cursor: pointer; }
 .plot { width: 100%; aspect-ratio: 16 / 10; min-height: 160px; }
 .foot { font-size: var(--text-caption); }
 .fill { flex: 1; min-height: 0; }
-.fill .plot { flex: 1; aspect-ratio: auto; min-height: 140px; }
+.fill .plot { flex: 1; aspect-ratio: auto; min-height: 88px; }
 .warn-text { color: var(--warn); }
 </style>

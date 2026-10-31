@@ -1,6 +1,6 @@
 <template>
   <TooltipProvider :delay-duration="350">
-    <div class="app" :data-view="activeView">
+    <div class="app" :data-view="activeView" :class="{ immersive: immersive && activeView === 'monitor' }">
       <header class="topbar">
         <div class="brand">
           <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M5 13.5c1.75 0 1.75-1.5 3.5-1.5s1.75 1.5 3.5 1.5 1.75-1.5 3.5-1.5 1.75 1.5 3.5 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
@@ -45,7 +45,10 @@
           <div v-show="activeView === 'console'" class="handle handle-left" role="separator" aria-orientation="vertical" aria-label="调整视频库宽度" @pointerdown="startResize('left', $event)" />
 
           <div v-if="activeView === 'monitor'" class="area-head">
-            <MonitorView :analysis="analysisState" :file-name="fileName" @layer="(key, value) => analysisPanelRef?.setLayer(key, value)" />
+            <MonitorView :analysis="analysisState" :file-name="fileName" :current-time="currentTime" />
+          </div>
+          <div v-if="activeView === 'monitor'" class="area-left">
+            <WallInsights :analysis="analysisState" :current-time="currentTime" @seek="handleTimelineClick" />
           </div>
 
           <div class="area-center">
@@ -75,6 +78,8 @@
               :boxes="boxes"
               :analysis="analysisState"
               :current-time="currentTime"
+              :wall="activeView === 'monitor'"
+              @layer="(key, value) => analysisPanelRef?.setLayer(key, value)"
               @roi-point="point => analysisPanelRef?.addRoiPoint(point)"
               @file-drop="handleFileDrop"
               @close="handleCloseWorkspace"
@@ -127,8 +132,6 @@ import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, b
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
 import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
-import MonitorView from './components/MonitorView.vue'
-import WallEvidence from './components/WallEvidence.vue'
 import TrackTimeline from './components/TrackTimeline.vue'
 import RecordsView from './components/RecordsView.vue'
 import UiTooltip from './components/ui/UiTooltip.vue'
@@ -140,6 +143,10 @@ import { confirmDialog, promptDialog } from './lib/dialogs'
 import { seekTo } from './lib/playback'
 import { shortId } from './lib/format'
 const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
+// The monitoring wall loads with its first visit; the workspace never downloads it.
+const MonitorView = defineAsyncComponent(() => import('./components/MonitorView.vue'))
+const WallEvidence = defineAsyncComponent(() => import('./components/WallEvidence.vue'))
+const WallInsights = defineAsyncComponent(() => import('./components/wall/WallInsights.vue'))
 
 const views = [
   { value: 'console', label: '工作台', icon: IconLayoutColumns },
@@ -219,6 +226,10 @@ function stopResize() {
   document.body.style.userSelect = ''
 }
 
+// Fullscreen on the wall drops app chrome; the wall header carries the clock and run context.
+const immersive = ref(false)
+// Only whole-page fullscreen counts; the player's own fullscreen leaves the layout alone.
+const syncFullscreen = () => { immersive.value = document.fullscreenElement === document.documentElement }
 function toggleFullscreen() {
   if (document.fullscreenElement) document.exitFullscreen()
   else document.documentElement.requestFullscreen?.()
@@ -557,6 +568,7 @@ watch(activeView, () => setSelectionMode(false))
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown)
+  document.addEventListener('fullscreenchange', syncFullscreen)
   checkHealth()
   try {
     await Promise.all([refreshHistory(), loadPipelineConfig()])
@@ -567,6 +579,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('fullscreenchange', syncFullscreen)
   invalidateWorkspaceRequests()
   stopResize()
   clearTimeout(healthTimer)
@@ -595,7 +608,26 @@ onBeforeUnmount(() => {
   grid-template-rows: minmax(0, 1fr);
   grid-template-areas: "library hl center hr inspector";
 }
-.layout.wall { grid-template-columns: minmax(0, 1fr) 12px minmax(340px, 30%); grid-template-rows: auto minmax(0, 1fr); grid-template-areas: "head head head" "center . side"; padding: 14px 16px; }
+.layout.wall {
+  --grid-line: color-mix(in oklch, var(--line) 40%, transparent);
+  grid-template-columns: minmax(260px, 21%) minmax(0, 1fr) minmax(280px, 23%);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "head head head" "left center side";
+  gap: 12px; padding: 12px 14px;
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(ellipse 60% 45% at 50% 0%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, 32px 32px, 32px 32px;
+  background-position: center top, -1px -1px, -1px -1px;
+}
+.layout.wall .area-center { gap: 10px; }
+.layout.wall .timeline-card { border-radius: var(--radius); }
+@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.stage) { height: 96px; } }
+.area-left { grid-area: left; min-height: 0; min-width: 0; }
+.app.immersive { grid-template-rows: 0 1fr 0; }
+.app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
 .area-library { grid-area: library; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
 .area-inspector { grid-area: inspector; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
 .area-head { grid-area: head; min-width: 0; }
@@ -630,6 +662,10 @@ onBeforeUnmount(() => {
   .brand-sub { display: none; }
   .layout { grid-template-columns: 232px 8px minmax(0, 1fr) 8px 312px; }
 }
+@media (max-width: 1200px) and (min-width: 901px) {
+  .layout.wall { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall .area-left { min-height: auto; }
+}
 @media (max-width: 900px) {
   .topbar { gap: 8px; padding: 0 8px; }
   .nav-item { padding: 0 8px; }
@@ -638,7 +674,7 @@ onBeforeUnmount(() => {
   .area-library { flex: none; height: 220px; }
   .area-center { flex: none; height: 62vh; min-height: 360px; }
   .area-inspector { flex: none; min-height: 560px; }
-  .area-side { flex: none; }
+  .area-side, .area-left { flex: none; }
   .statusbar .faint { display: none; }
 }
 </style>

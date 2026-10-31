@@ -1,6 +1,6 @@
 <template>
-  <div class="workspace">
-    <header class="bar">
+  <div class="workspace" :class="{ wall }">
+    <header v-if="!wall" class="bar">
       <div class="title">
         <IconMovie class="title-icon" />
         <span class="name" :title="fileName">{{ fileName || '未选择视频' }}</span>
@@ -52,6 +52,12 @@
             class="overlay-canvas"
           />
         </div>
+        <template v-if="wall && analysis">
+          <div class="hud hud-time"><span class="hud-tag">回放</span><span class="tnum">{{ formatClock(displayTime) }} / {{ formatClock(videoDuration) }}</span><span class="sep" /><span class="tnum">帧 {{ frameNumber }}<template v-if="frameCount"> / {{ frameCount.toLocaleString('zh-CN') }}</template></span></div>
+          <div class="hud hud-layers" role="group" aria-label="画面图层">
+            <button v-for="(title, key) in layerNames" :key="key" type="button" :aria-pressed="analysis.layers[key]" @click="emit('layer', key, !analysis.layers[key])">{{ title }}</button>
+          </div>
+        </template>
         <div v-if="analysis?.layers.roiEditing" class="hud hud-top"><IconPointer />在画面上点选 ROI 顶点，至少 3 个，完成后到“统计”应用</div>
         <div v-if="analysis?.layers.heatmap && analysis?.heatmap" class="hud hud-legend">
           <span class="ramp" />
@@ -70,6 +76,7 @@ import { IconMovie, IconX, IconUpload, IconPointer } from '@tabler/icons-vue'
 import UiSegmented from './ui/UiSegmented.vue'
 import UiTooltip from './ui/UiTooltip.vue'
 import { trackColor, inferno } from '../lib/palette'
+import { formatClock } from '../lib/format'
 import { activeVideo, videoAspect } from '../lib/playback'
 import { installPlayerControls } from '../lib/playerControls'
 import { toast } from '../lib/toast'
@@ -88,10 +95,12 @@ const props = defineProps({
   },
   boxes: { type: Array, default: () => [] },
   currentTime: { type: Number, default: 0 },
-  fileName: { type: String, default: '' }
+  fileName: { type: String, default: '' },
+  wall: Boolean
 })
 
-const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'update:playback-mode'])
+const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'update:playback-mode', 'layer'])
+const layerNames = { boxes: '检测框', tails: '尾迹', heatmap: '热图' }
 const modeOptions = [{ value: 'overlay', label: '叠加层' }, { value: 'result', label: '推理视频' }]
 const isDemo = computed(() => /synthetic|合成|DEMO/i.test(props.fileName || ''))
 const heatPeakText = computed(() => {
@@ -133,6 +142,8 @@ let canvasContext = null
 let pendingResumePlayback = false
 let lastCanvasDpr = 0
 
+const frameCount = computed(() => props.analysis?.run?.summary?.frame_count || 0)
+const frameNumber = computed(() => Math.min(frameCount.value || Infinity, Math.floor(displayTime.value * (props.analysis?.fps || 30)) + 1))
 const isOverlayMode = computed(() => props.playbackMode === 'overlay')
 const activeVideoUrl = computed(() => (
   props.playbackMode === 'result' && props.resultVideoUrl
@@ -1205,6 +1216,13 @@ onUnmounted(() => {
 .hud { position: absolute; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: var(--radius); font-size: var(--text-caption); color: oklch(0.95 0.01 205); background: oklch(0.15 0.02 240 / 0.78); backdrop-filter: blur(6px); pointer-events: none; }
 .hud-top { top: 10px; left: 50%; translate: -50% 0; color: #eabf70; }
 .hud-legend { left: 10px; bottom: 58px; }
+.hud-time { top: 10px; left: 10px; font-size: var(--text-small); }
+.hud-tag { padding: 0 5px; border-radius: 3px; font-size: 10.5px; font-weight: 600; color: oklch(0.2 0.04 220); background: #61c7c2; }
+.hud-layers { top: 10px; right: 10px; gap: 2px; padding: 3px; pointer-events: auto; }
+.hud-layers button { height: 24px; padding: 0 9px; border: 0; border-radius: 4px; font: inherit; font-size: var(--text-caption); color: oklch(0.95 0.01 205 / 0.6); background: none; cursor: pointer; transition: color 120ms var(--ease), background-color 120ms var(--ease); }
+.hud-layers button:hover { color: oklch(0.95 0.01 205); }
+.hud-layers button[aria-pressed=true] { color: oklch(0.95 0.01 205); background: oklch(1 0 0 / 0.14); }
+.workspace.wall { border-radius: var(--radius); }
 .hud .ramp { width: 72px; height: 6px; border-radius: 1px; background: linear-gradient(90deg, #000004, #420a68, #932667, #dd513a, #fca50a, #fcffa4); }
 .hud .sep { width: 1px; height: 10px; background: oklch(1 0 0 / 0.25); }
 

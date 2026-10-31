@@ -299,9 +299,13 @@ function problem(e) {
   return e?.response ? `请求失败（HTTP ${e.response.status}）。刷新后重试。` : '无法连接本地后端。确认服务已启动后重新连接。'
 }
 
+function runOrdinal() {
+  const index = runs.value.findIndex(item => item.run_id === run.value?.run_id)
+  return index < 0 ? null : runs.value.length - index
+}
 function publish() {
   emit('analysis', markRaw({
-    runId: run.value?.run_id, run: run.value, summary: summary.value, tracks: tracks.value, heatmap: heatmap.value,
+    runId: run.value?.run_id, run: run.value, ordinal: runOrdinal(), summary: summary.value, tracks: tracks.value, heatmap: heatmap.value,
     overview: overview.value, layers: { ...layers }, roi: applied.value.roi || null, roiDraft: layers.roiEditing ? roiDraft() : null, window: { ...applied.value },
     labels: selectedModel.value?.labels || {}, aspect: aspect.value,
     allowedGap: run.value?.config_snapshot.settings.allowed_gap_seconds || 0.5, fps: run.value?.summary?.fps || 30,
