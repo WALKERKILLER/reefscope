@@ -20,8 +20,8 @@
   --accent-ink: oklch(1 0 0);
   --accent-soft: oklch(0.5 0.09 195 / 0.1);
   --info: oklch(0.5 0.1 240);
-  --warn: oklch(0.54 0.12 65);
-  --warn-soft: oklch(0.54 0.12 65 / 0.1);
+  --warn: oklch(0.5 0.12 65);
+  --warn-soft: oklch(0.5 0.12 65 / 0.1);
   --danger: oklch(0.55 0.17 22);
   --danger-soft: oklch(0.55 0.17 22 / 0.09);
   --ok: oklch(0.52 0.12 150);
