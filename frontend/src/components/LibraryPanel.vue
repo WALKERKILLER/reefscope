@@ -50,8 +50,8 @@
     </div>
 
     <footer class="foot">
-      <button class="config" @click="emit('file-select', configFile)">
-        <IconFileText /><span>旧检测管线配置</span><span class="mono faint">{{ configFile.name }}</span>
+      <button class="config" :class="{ active: configActive }" :aria-current="configActive ? 'true' : undefined" :title="configFile.path" @click="emit('file-select', configFile)">
+        <IconAdjustmentsHorizontal class="config-icon" /><span class="config-label">旧检测管线配置</span><span class="config-ext">TOML</span><IconChevronRight class="config-chevron" />
       </button>
     </footer>
   </aside>
@@ -59,7 +59,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { IconUpload, IconChecks, IconSearch, IconMovie, IconDotsVertical, IconFileText, IconRefresh, IconCopy, IconPencil, IconTrash } from '@tabler/icons-vue'
+import { IconUpload, IconChecks, IconSearch, IconMovie, IconDotsVertical, IconAdjustmentsHorizontal, IconChevronRight, IconRefresh, IconCopy, IconPencil, IconTrash } from '@tabler/icons-vue'
 import UiMenu from './ui/UiMenu.vue'
 import UiTooltip from './ui/UiTooltip.vue'
 
@@ -67,6 +67,7 @@ const props = defineProps({
   history: { type: Array, default: () => [] },
   currentId: { type: [Number, String], default: null },
   configFile: { type: Object, required: true },
+  configActive: Boolean,
   selectionMode: Boolean,
   selectedIds: { type: Array, default: () => [] }
 })
@@ -137,7 +138,12 @@ h2 { font-size: var(--text-title); font-weight: 600; }
 .batch { display: flex; flex-direction: column; gap: 8px; margin: 0 8px 8px; padding: 10px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-small); }
 .batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .foot { padding: 6px 8px 8px; box-shadow: inset 0 1px 0 var(--line); }
-.config { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 0; border-radius: var(--radius); background: none; font: inherit; font-size: var(--text-small); color: var(--ink-2); cursor: pointer; text-align: start; }
+.config { display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius); background: none; font: inherit; font-size: var(--text-small); color: var(--ink-2); cursor: pointer; text-align: start; white-space: nowrap; transition: background-color 120ms var(--ease), color 120ms var(--ease); }
 .config:hover { background: var(--surface-2); color: var(--ink); }
-.config .faint { margin-inline-start: auto; color: var(--ink-3); font-size: var(--text-caption); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.config.active { background: var(--accent-soft); color: var(--ink); }
+.config-icon { flex: none; color: var(--ink-3); }
+.config.active .config-icon { color: var(--accent); }
+.config-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.config-ext { flex: none; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink-3); }
+.config-chevron { flex: none; --icon-size: 14px; color: var(--ink-3); }
 </style>
