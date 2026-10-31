@@ -14,6 +14,8 @@
 
 页面展示模型的训练、评估与报告历史，实际 CSV 曲线及七章确定性报告。验证 mAP50、验证 mAP50-95 的最优 epoch 与框架 best fitness 分别保存；缺少实际 checkpoint epoch 时保持 N/A。
 
+顶部指标读取报告记录的最优 epoch 及该 epoch 的原始数值，不在前端重新挑选。曲线按指标拆为共享 epoch 轴的小多图：验证 mAP、Precision / Recall 与各项 loss；最优 epoch 用圆点标出，悬停时列出该 epoch 的全部数值，缩放在切换主题或调整窗口后保留。原始数值表标出最优 epoch。缺失输入显示为中文标签，悬停可见原始代码。
+
 `GET /api/v1/model-versions/{model_id}/history` 返回各类最新 100 条记录；`GET /api/v1/reports/{uuid}` 返回冻结报告和曲线；`GET /api/v1/evaluations/{uuid}` 返回评估证据。报告导出使用 `/api/v1/reports/{uuid}/export?export=markdown|html`；HTML 提供 A4 打印样式，可通过浏览器打印保存 PDF，不是服务端 PDF 文件接口。
 
 报告输出转义 HTML，禁止脚本和远程资源。所有报告默认待人工审阅。没有独立测试、人工 ID 真值或固定硬件 benchmark 时，对应字段保持 N/A；验证曲线不能证明泛化精度、IDF1 或 HOTA。
