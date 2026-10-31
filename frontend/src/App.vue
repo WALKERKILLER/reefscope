@@ -31,6 +31,7 @@
               :history="history"
               :current-id="currentTaskId"
               :config-file="configFileEntry"
+              :config-active="workspaceMode === 'config'"
               :selection-mode="selectionMode"
               :selected-ids="selectedFileIds"
               @file-select="handleFileSelect"
@@ -53,9 +54,12 @@
               class="grow"
               :file-name="configFileEntry.name"
               :content="configContent"
+              :saved-content="configSavedContent"
+              :settings="configSettings"
               :save-message="configSaveMessage"
+              :save-content="saveConfigContent"
+              :save-settings="saveConfigSettings"
               @update:content="configContent = $event"
-              @save="handleSaveConfig"
               @close="handleCloseWorkspace"
             />
             <VideoWorkspace
@@ -164,6 +168,8 @@ const rightWidth = ref(352)
 const layoutRef = ref(null)
 const workspaceMode = ref('video')
 const configContent = ref('')
+const configSavedContent = ref('')
+const configSettings = shallowRef(null)
 const configSaveMessage = ref('')
 const configFileEntry = ref({ id: 'config:pipeline_settings.toml', type: 'config', name: 'pipeline_settings.toml', path: 'config/pipeline_settings.toml' })
 const selectionMode = ref(false)
@@ -511,19 +517,30 @@ async function handlePlayRecord(record) {
   }
 }
 
-async function handleSaveConfig() {
+function applyPipelineConfig(data) {
+  configContent.value = data.content || ''
+  configSavedContent.value = configContent.value
+  configSettings.value = data.settings || null
+}
+
+// The form sends structured settings and the backend writes canonical TOML; the code view sends the file as typed.
+async function savePipelineConfig(payload, hint) {
   try {
-    const res = await updateConfig({ content: configContent.value })
-    configContent.value = res.data.content
+    const res = await updateConfig(payload)
+    applyPipelineConfig(res.data)
     configSaveMessage.value = '已保存'
     resetConfigSaveMessage()
+    return true
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '配置保存失败'
     configSaveMessage.value = '保存失败'
-    showToast('配置没有保存', `${errMsg}。检查 TOML 语法后重试。`, 'alert')
+    showToast('配置没有保存', `${errMsg}。${hint}`, 'alert')
     resetConfigSaveMessage()
+    return false
   }
 }
+const saveConfigContent = () => savePipelineConfig({ content: configContent.value }, '检查 TOML 语法后重试。')
+const saveConfigSettings = settings => savePipelineConfig({ settings }, '检查填写的数值后重试。')
 
 async function refreshHistory() {
   const res = await listTasks()
@@ -532,7 +549,7 @@ async function refreshHistory() {
 
 async function loadPipelineConfig() {
   const res = await getConfig()
-  configContent.value = res.data.content || ''
+  applyPipelineConfig(res.data)
   configFileEntry.value = { ...configFileEntry.value, path: res.data.path || configFileEntry.value.path }
 }
 

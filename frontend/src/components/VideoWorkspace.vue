@@ -71,6 +71,8 @@ import UiSegmented from './ui/UiSegmented.vue'
 import UiTooltip from './ui/UiTooltip.vue'
 import { trackColor, inferno } from '../lib/palette'
 import { activeVideo, videoAspect } from '../lib/playback'
+import { installPlayerControls } from '../lib/playerControls'
+import { toast } from '../lib/toast'
 
 const props = defineProps({
   analysis: { type:Object, default:null },
@@ -163,6 +165,11 @@ function ensureArtPlayer() {
     fullscreenWeb: true,
     setting: false,
     playbackRate: true,
+    hotkey: true,
+    miniProgressBar: true,
+    fastForward: true,
+    lock: true,
+    autoOrientation: true,
     pip: true,
     mutex: true,
     backdrop: true,
@@ -177,6 +184,7 @@ function ensureArtPlayer() {
     customType: {},
   })
 
+  installPlayerControls(art, { fps: () => props.analysis?.fps || 0, snapshot: saveSnapshot })
   art.on('ready', handleArtReady)
   art.on('play', handleVideoPlay)
   art.on('pause', handleVideoPause)
@@ -188,6 +196,34 @@ function ensureArtPlayer() {
   art.on('fullscreen', handleArtResize)
   art.on('fullscreenWeb', handleArtResize)
   ensureCanvasMount()
+}
+
+// Saves the current frame with the visible overlay, at the video's resolution (capped at 1920 px wide).
+function saveSnapshot() {
+  const video = getVideoElement(), overlay = canvasRef.value
+  if (!video?.videoWidth) return
+  const scale = Math.min(1, 1920 / video.videoWidth)
+  const out = document.createElement('canvas')
+  out.width = Math.round(video.videoWidth * scale)
+  out.height = Math.round(video.videoHeight * scale)
+  const ctx = out.getContext('2d')
+  ctx.drawImage(video, 0, 0, out.width, out.height)
+  const m = lastDrawMetrics, dpr = lastCanvasDpr
+  if (isOverlayMode.value && m && overlay && dpr) ctx.drawImage(overlay, m.offsetX * dpr, m.offsetY * dpr, m.drawWidth * dpr, m.drawHeight * dpr, 0, 0, out.width, out.height)
+  const name = `${(props.fileName || 'frame').replace(/\.[^.]+$/, '')}-${video.currentTime.toFixed(2)}s.png`
+  try {
+    out.toBlob(blob => {
+      if (!blob) return
+      const url = URL.createObjectURL(blob), a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast({ title: '已保存截图', desc: name, type: 'success' })
+    }, 'image/png')
+  } catch {
+    toast({ title: '无法截图', desc: '视频来源不允许读取画面。', type: 'error' })
+  }
 }
 
 function destroyArtPlayer() {
@@ -1178,4 +1214,8 @@ onUnmounted(() => {
 :deep(.art-video-player.art-fullscreen), :deep(.art-video-player.art-fullscreen-web) { width: 100% !important; height: 100% !important; }
 :deep(.art-video-player .art-bottom) { background-image: linear-gradient(to top, oklch(0 0 0 / 0.55), transparent); }
 :deep(.art-video-player .art-control) { font-variant-numeric: tabular-nums; }
+:deep(.art-video-player .rs-art-icon) { display: inline-flex; --icon-size: 20px; --icon-stroke: 1.75; }
+:deep(.art-video-player .art-control-rate .art-selector-value) { min-width: 34px; font-size: 13px; font-weight: 600; text-align: center; }
+:deep(.art-video-player .art-control-loop:not(.is-on)) { opacity: 0.55; }
+:deep(.art-video-player .art-control-loop.is-on) { color: var(--art-theme); }
 </style>
