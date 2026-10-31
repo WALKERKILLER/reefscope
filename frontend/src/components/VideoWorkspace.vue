@@ -1,158 +1,63 @@
 <template>
-  <div class="flex flex-col h-full bg-m3-surface/30 border border-m3-outline-variant/30 rounded-lg overflow-hidden relative">
-    <!-- Editor Tab Bar -->
-    <div class="flex items-center bg-transparent h-10 shrink-0 relative border-b border-m3-outline-variant/30 px-3 overflow-hidden">
-      <div class="flex items-center px-4 h-full border-b-2 border-m3-primary text-m3-primary cursor-pointer relative z-10 box-border group">
-        <span class="text-[11px] font-medium mr-2 text-m3-on-surface-variant bg-m3-surface-container py-0.5 px-1.5 rounded border border-m3-outline-variant/30 uppercase tracking-wider">源</span>
-        <span class="font-medium text-[12px] text-m3-on-surface mr-3">{{ fileName || '未命名.mp4' }}</span>
-        <button
-          v-if="status !== 'idle'"
-          @click="$emit('close')"
-          aria-label="关闭视频"
-          class="p-0.5 rounded opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-m3-primary/20 text-m3-primary transition-all"
-        >
-          <i class="w-3.5 h-3.5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 block">
-              <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-            </svg>
-          </i>
-        </button>
+  <div class="workspace">
+    <header class="bar">
+      <div class="title">
+        <IconMovie class="title-icon" />
+        <span class="name" :title="fileName">{{ fileName || '未选择视频' }}</span>
+        <span v-if="isDemo" class="tag tag-warn">合成演示</span>
       </div>
-      <div class="absolute right-2 top-0 bottom-0 flex items-center gap-2 z-20">
-        <div
-          v-if="status === 'playing'"
-          class="flex items-center rounded-md border border-m3-outline-variant/40 bg-m3-surface/80 p-0.5 backdrop-blur-sm"
-        >
-          <button
-            type="button"
-            class="px-2.5 py-1 text-[11px] font-medium rounded transition-colors"
-            :class="props.playbackMode === 'overlay'
-              ? 'bg-m3-primary text-m3-on-primary'
-              : 'text-m3-on-surface-variant hover:bg-m3-surface-container hover:text-m3-on-surface'"
-            @click="setPlaybackMode('overlay')"
-          >
-            CANVAS
-          </button>
-          <button
-            type="button"
-            class="px-2.5 py-1 text-[11px] rounded transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-            :class="props.playbackMode === 'result'
-              ? 'bg-m3-primary text-m3-on-primary'
-              : 'text-m3-on-surface-variant hover:bg-m3-surface-container hover:text-m3-on-surface'"
-            :disabled="!props.resultVideoUrl"
-            @click="setPlaybackMode('result')"
-          >
-            YOLO 输出视频
-          </button>
-        </div>
-        <button
-          @click="$emit('settings-click')"
-          class="p-1.5 hover:bg-m3-surface-container rounded-md text-m3-on-surface-variant hover:text-m3-on-surface transition-colors"
-          title="管线设置"
-        >
-          <i class="w-4 h-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 block">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </i>
-        </button>
+      <div class="actions">
+        <UiSegmented v-if="status === 'playing' && !analysis && resultVideoUrl" :model-value="playbackMode" @update:model-value="setPlaybackMode" :options="modeOptions" aria-label="播放内容" />
+        <UiTooltip v-if="status !== 'idle'" text="关闭视频">
+          <button class="btn btn-ghost btn-sm btn-icon" @click="$emit('close')" aria-label="关闭视频"><IconX /></button>
+        </UiTooltip>
       </div>
-    </div>
+    </header>
 
-    <!-- Editor Body -->
-    <div class="flex-1 relative overflow-hidden flex flex-col bg-transparent">
-
-      <!-- Idle State -->
-      <div v-if="status === 'idle'" class="absolute inset-0 flex items-center justify-center p-8">
+    <div class="body">
+      <div v-if="status === 'idle'" class="idle">
         <div
-          class="w-full max-w-2xl h-64 rounded-xl border border-dashed flex flex-col items-center justify-center transition-all duration-300 relative overflow-hidden"
-          :class="isDragging ? 'border-m3-primary bg-m3-primary/10 text-m3-on-primary-container' : 'border-m3-outline-variant/50 hover:border-m3-outline-variant bg-m3-surface/50 hover:bg-m3-surface'"
+          class="drop"
+          :class="{ dragging: isDragging }"
           @dragenter.prevent="onDragEnter"
           @dragover.prevent="onDragOver"
           @dragleave="onDragLeave"
           @drop.prevent="onDrop"
         >
-          <!-- Organic blob background -->
-          <div class="absolute w-64 h-64 bg-m3-primary/10 blur-2xl transition-all duration-500" :class="isDragging ? 'opacity-100 scale-110' : 'opacity-0 scale-50'"></div>
-
-          <div class="relative z-10 flex flex-col items-center">
-            <div class="w-12 h-12 mb-4 flex items-center justify-center rounded-full transition-all" :class="isDragging ? 'bg-m3-primary text-m3-on-primary' : 'bg-m3-surface-container text-m3-on-surface-variant'">
-              <i class="w-5 h-5">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="17 8 12 3 7 8"/>
-                  <line x1="12" y1="3" x2="12" y2="15"/>
-                </svg>
-              </i>
-            </div>
-            <h2 class="text-[14px] font-medium mb-1 text-m3-on-surface">等待视频数据</h2>
-            <p class="text-[11px] font-medium text-m3-on-surface-variant mb-6 tracking-widest">拖拽 MP4 以初始化</p>
-            <div class="flex gap-3">
-              <button
-                @click="openFilePicker"
-                class="px-5 py-2 text-[12px] rounded-md cursor-pointer text-m3-on-surface hover:bg-m3-surface-container transition-all bg-m3-surface-container font-medium border border-m3-outline-variant/30"
-              >浏览文件</button>
-            </div>
-          </div>
+          <IconUpload class="drop-icon" />
+          <h2>拖入 MP4 视频开始</h2>
+          <p class="note">视频保存在本地后端。上传后在右侧选择注册模型创建分析，或从左侧视频库打开已有视频。</p>
+          <button class="btn" @click="openFilePicker"><IconUpload />选择文件</button>
         </div>
-        <!-- Hidden file input -->
-        <input
-          ref="fileInputRef"
-          type="file"
-          accept="video/mp4"
-          class="hidden"
-          @change="onFilePicked"
-        />
+        <input ref="fileInputRef" type="file" accept="video/mp4" class="sr-only" tabindex="-1" @change="onFilePicked" />
       </div>
 
-      <!-- Processing State -->
-      <div v-if="status === 'processing'" class="absolute inset-0 flex flex-col pt-20 items-center bg-m3-bg/50 backdrop-blur-sm z-20">
-        <div class="relative w-24 h-24 mb-6 flex justify-center items-center">
-          <div class="absolute inset-0 bg-m3-primary/30 blur-xl shadow-[0_0_80px_currentColor] animate-pulse rounded-full text-m3-primary/30" style="animation-duration: 3s"></div>
-          <div class="absolute inset-4 bg-m3-primary/20 blur-lg rounded-full animate-pulse" style="animation-duration: 2s; animation-direction: reverse"></div>
-          <span class="relative z-10 text-m3-primary font-bold text-3xl font-mono drop-shadow-[0_0_8px_currentColor]">{{ progress }}%</span>
-        </div>
-
-        <div class="w-full max-w-lg flex flex-col bg-m3-surface rounded-lg overflow-hidden border border-m3-outline-variant/30">
-          <div class="bg-m3-surface-container px-6 py-4 text-[11px] font-medium tracking-widest text-m3-on-surface flex justify-between items-center border-b border-m3-outline-variant/30">
-            <span class="flex items-center gap-2.5">
-              <div class="w-2 h-2 bg-m3-warning rounded-full animate-pulse"></div>
-              正在上传视频
-            </span>
-          </div>
-
-          <div class="p-6 bg-transparent flex flex-col">
-            <div class="h-2 w-full bg-m3-surface-container-highest rounded-full mb-4 overflow-hidden">
-              <div class="h-full bg-m3-primary transition-all duration-300" :style="{ width: `${progress}%`, borderRadius: 'inherit' }"></div>
-            </div>
-
-            <div ref="logsContainerRef" class="h-32 overflow-y-auto font-mono text-[11px] text-m3-on-surface-variant whitespace-pre-wrap">
-              <div
-                v-for="(log, idx) in logs"
-                :key="idx"
-                class="mb-1 leading-snug"
-                :class="{ 'text-m3-warning': log.includes('WARN'), 'text-m3-error': log.includes('ERR') }"
-              >
-                <span class="text-m3-outline select-none mr-2">[{{ getTimestamp() }}]</span>
-                {{ log }}
-              </div>
-              <div v-if="progress < 100" class="animate-pulse mt-1 opacity-50">_</div>
-            </div>
-          </div>
+      <div v-if="status === 'processing'" class="uploading" role="status">
+        <div class="upload-card">
+          <div class="upload-head"><span>正在上传</span><span class="tnum">{{ progress }}%</span></div>
+          <div class="progress"><span :style="{ width: `${progress}%` }" /></div>
+          <ol ref="logsContainerRef" class="log">
+            <li v-for="(log, idx) in logs" :key="idx" :class="{ warn: log.includes('WARN'), err: log.includes('ERR') }">{{ log }}</li>
+          </ol>
         </div>
       </div>
 
-      <!-- Playing State -->
-      <div v-if="status === 'playing'" class="absolute inset-0 flex flex-col bg-transparent">
-        <div ref="containerRef" class="relative flex-1 rounded-lg overflow-hidden flex items-center justify-center select-none m-3 mt-4 mb-2 bg-[#000000]">
-          <div ref="playerHostRef" class="absolute inset-0"></div>
+      <div v-if="status === 'playing'" class="stage">
+        <div ref="containerRef" class="player">
+          <div ref="playerHostRef" class="player-host"></div>
           <canvas
             ref="canvasRef"
-            :style="{pointerEvents: analysis?.layers.roiEditing ? 'auto' : 'none', cursor: analysis?.layers.roiEditing ? 'crosshair' : 'default'}"
+            :style="{ pointerEvents: analysis?.layers.roiEditing ? 'auto' : 'none', cursor: analysis?.layers.roiEditing ? 'crosshair' : 'default' }"
             @click="pickRoiPoint"
-            class="absolute inset-0 w-full h-full object-contain pointer-events-none z-20"
+            class="overlay-canvas"
           />
+        </div>
+        <div v-if="analysis?.layers.roiEditing" class="hud hud-top"><IconPointer />在画面上点选 ROI 顶点，至少 3 个，完成后到“统计”应用</div>
+        <div v-if="analysis?.layers.heatmap && analysis?.heatmap" class="hud hud-legend">
+          <span class="ramp" />
+          <span class="tnum">0 – {{ heatPeakText }}</span>
+          <span class="sep" />
+          <span>画面相对占据度，非海底地理坐标</span>
         </div>
       </div>
     </div>
@@ -160,8 +65,12 @@
 </template>
 
 <script setup>
-import Artplayer from 'artplayer'
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
+import { IconMovie, IconX, IconUpload, IconPointer } from '@tabler/icons-vue'
+import UiSegmented from './ui/UiSegmented.vue'
+import UiTooltip from './ui/UiTooltip.vue'
+import { trackColor, inferno } from '../lib/palette'
+import { activeVideo, videoAspect } from '../lib/playback'
 
 const props = defineProps({
   analysis: { type:Object, default:null },
@@ -180,7 +89,13 @@ const props = defineProps({
   fileName: { type: String, default: '' }
 })
 
-const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'settings-click', 'update:playback-mode'])
+const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'update:playback-mode'])
+const modeOptions = [{ value: 'overlay', label: '叠加层' }, { value: 'result', label: '推理视频' }]
+const isDemo = computed(() => /synthetic|合成|DEMO/i.test(props.fileName || ''))
+const heatPeakText = computed(() => {
+  const grid = props.analysis?.heatmap
+  return grid ? `${Math.max(0, ...grid.values_raw.flat()).toFixed(2)} track-s` : ''
+})
 
 const isDragging = ref(false)
 const isPlaying = ref(false)
@@ -193,6 +108,10 @@ const logsContainerRef = ref(null)
 const fileInputRef = ref(null)
 
 let art = null
+let Artplayer = null
+let unmounted = false
+// Artplayer is only needed once a video plays; keep it out of the initial bundle.
+const loadArtplayer = () => Artplayer ? Promise.resolve() : import('artplayer').then(m => { Artplayer = m.default })
 let dragCounter = 0
 let animationFrameId = null
 let resizeObserver = null
@@ -230,12 +149,12 @@ function setPlaybackMode(mode) {
 }
 
 function ensureArtPlayer() {
-  if (art || !playerHostRef.value) return
+  if (art || !Artplayer || !playerHostRef.value) return
 
   art = new Artplayer({
     container: playerHostRef.value,
     url: activeVideoUrl.value || '',
-    theme: '#85d2f6',
+    theme: '#61c7c2',
     autoplay: true,
     autoSize: false,
     autoMini: false,
@@ -273,6 +192,7 @@ function ensureArtPlayer() {
 
 function destroyArtPlayer() {
   if (!art) return
+  if (activeVideo.value === art.video) activeVideo.value = null
   art.destroy(false)
   art = null
 }
@@ -361,6 +281,7 @@ function handleArtTimeUpdate() {
 function handleArtReady() {
   const video = getVideoElement()
   if (!video) return
+  activeVideo.value = video
 
   ensureCanvasMount()
   videoDuration.value = video.duration || 0
@@ -370,6 +291,8 @@ function handleArtReady() {
 function handleArtMetadataReady() {
   const video = getVideoElement()
   if (!video) return
+  activeVideo.value = video
+  if (video.videoWidth && video.videoHeight) videoAspect.value = video.videoWidth / video.videoHeight
 
   videoDuration.value = video.duration || 0
   isPlaying.value = !video.paused && !video.ended
@@ -888,107 +811,167 @@ function renderCanvas(force = false, explicitTime = null) {
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
   if (props.analysis) renderAnalysisLayers(ctx,metrics,time)
-  const labelFontSize = Math.max(10, Math.min(14, Math.round(drawWidth / 90)))
-  const lineWidth = Math.max(2, Math.min(3, Math.round(drawWidth / 560)))
-  const labelHeight = Math.max(18, Math.round(labelFontSize * 1.35))
-  ctx.font = `700 ${labelFontSize}px "Segoe UI", sans-serif`
-  ctx.textBaseline = 'alphabetic'
-  currentBoxes.forEach(box => {
-    const x = offsetX + (box.x * drawWidth)
-    const y = offsetY + (box.y * drawHeight)
-    const w = box.width * drawWidth
-    const h = box.height * drawHeight
-
-    const isAlert = box.type === 'alert'
-    const color = isAlert ? '#ffb4ab' : '#85d2f6'
-    const bgColor = isAlert ? 'rgba(255, 180, 171, 0.2)' : 'rgba(133, 210, 246, 0.2)'
-    const textColor = isAlert ? '#93000a' : '#003548'
-
-    ctx.setLineDash(box._held ? [4, 3] : [])
-    ctx.beginPath()
-    ctx.rect(x, y, w, h)
-    ctx.strokeStyle = color
-    ctx.lineWidth = lineWidth
-    ctx.stroke()
-
-    if (isAlert) {
-      ctx.fillStyle = bgColor
-      ctx.fill()
-    }
-
-    ctx.setLineDash([])
-    ctx.fillStyle = color
-    const textWidth = ctx.measureText(box._labelText).width
-
-    const labelX = Math.max(offsetX, Math.min(x - 1, offsetX + drawWidth - textWidth - 10))
-    const labelY = Math.max(offsetY, y - labelHeight)
-    ctx.beginPath()
-    ctx.rect(labelX, labelY, textWidth + 10, labelHeight)
-    ctx.fill()
-
-    ctx.fillStyle = textColor
-    ctx.fillText(box._labelText, labelX + 4, labelY + labelHeight - 5)
-  })
+  drawBoxes(ctx, currentBoxes, metrics)
 }
 
+const LABEL_FONT = '"Inter Variable", Inter, "HarmonyOS Sans SC", sans-serif'
+
+function roundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+// Boxes carry the identity color; labels sit on a filled pill so they stay legible on bright water.
+function drawBoxes(ctx, boxes, { drawWidth, drawHeight, offsetX, offsetY }) {
+  const fontSize = Math.max(10, Math.min(13, Math.round(drawWidth / 100)))
+  const lineWidth = drawWidth > 1400 ? 2 : 1.5
+  const labelHeight = Math.round(fontSize * 1.55)
+  ctx.font = `600 ${fontSize}px ${LABEL_FONT}`
+  ctx.textBaseline = 'middle'
+  for (const box of boxes) {
+    const x = offsetX + box.x * drawWidth, y = offsetY + box.y * drawHeight
+    const w = box.width * drawWidth, h = box.height * drawHeight
+    const color = box._color || (box.type === 'alert' ? '#ee8790' : '#61c7c2')
+    ctx.setLineDash(box._held ? [5, 4] : [])
+    ctx.lineWidth = lineWidth
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.45)'
+    ctx.strokeRect(x - 0.5, y - 0.5, w + 1, h + 1)
+    ctx.strokeStyle = color
+    ctx.strokeRect(x, y, w, h)
+    ctx.setLineDash([])
+    const text = box._labelText.trim()
+    const textWidth = ctx.measureText(text).width
+    const pillW = textWidth + 10
+    const labelX = Math.max(offsetX, Math.min(x, offsetX + drawWidth - pillW))
+    const above = y - labelHeight - 2 >= offsetY
+    const labelY = above ? y - labelHeight - 2 : Math.min(offsetY + drawHeight - labelHeight, y + h + 2)
+    roundedRect(ctx, labelX, labelY, pillW, labelHeight, 3)
+    ctx.fillStyle = box._held ? 'rgba(10, 20, 28, 0.82)' : color
+    ctx.fill()
+    if (box._held) { ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.stroke() }
+    ctx.fillStyle = box._held ? color : '#0a141c'
+    ctx.fillText(text, labelX + 5, labelY + labelHeight / 2 + 0.5)
+  }
+}
+
+// Analysis layers: frames and tails rebuild only when the loaded observations change; the heat raster only when the grid changes.
 let heatSurface = null
 let serverFrames = []
 let serverTails = new Map()
-watch(() => props.analysis, value => {
-  heatSurface = null
+watch(() => props.analysis?.tracks, points => {
   serverFrames = []
   serverTails = new Map()
-  if(value) {
-    const frames = new Map()
-    for(const point of value.tracks || []) {
-      if(!point.observed) continue
-      if(!frames.has(point.timestamp_ms)) frames.set(point.timestamp_ms,[])
-      frames.get(point.timestamp_ms).push(point)
-      if(!serverTails.has(point.track_id)) serverTails.set(point.track_id,[])
-      serverTails.get(point.track_id).push(point)
-    }
-    serverFrames=[...frames.entries()].sort((a,b)=>a[0]-b[0])
-    const grid=value.heatmap
-    if(grid){
-      heatSurface=document.createElement('canvas');heatSurface.width=grid.width;heatSurface.height=grid.height
-      const context=heatSurface.getContext('2d'),pixels=context.createImageData(grid.width,grid.height)
-      grid.values_display.forEach((row,y)=>row.forEach((v,x)=>{const i=(y*grid.width+x)*4;pixels.data[i]=56;pixels.data[i+1]=189;pixels.data[i+2]=248;pixels.data[i+3]=Math.round(Math.max(0,Math.min(1,v))*235)}))
-      context.putImageData(pixels,0,0)
-    }
+  const frames = new Map()
+  for (const point of points || []) {
+    if (!point.observed) continue
+    if (!frames.has(point.timestamp_ms)) frames.set(point.timestamp_ms, [])
+    frames.get(point.timestamp_ms).push(point)
+    if (!serverTails.has(point.track_id)) serverTails.set(point.track_id, [])
+    serverTails.get(point.track_id).push(point)
   }
-  nextTick(()=>renderCanvas(true,getVideoElement()?.currentTime ?? 0))
-},{immediate:true})
+  serverFrames = [...frames.entries()].sort((a, b) => a[0] - b[0])
+  scheduleRedraw()
+}, { immediate: true })
+watch(() => props.analysis?.heatmap, grid => {
+  heatSurface = null
+  if (grid) {
+    heatSurface = document.createElement('canvas')
+    heatSurface.width = grid.width
+    heatSurface.height = grid.height
+    const context = heatSurface.getContext('2d'), pixels = context.createImageData(grid.width, grid.height)
+    grid.values_display.forEach((row, y) => row.forEach((v, x) => {
+      if (!(v > 0)) return
+      const value = Math.min(1, v), [r, g, b] = inferno(value), i = (y * grid.width + x) * 4
+      pixels.data[i] = r; pixels.data[i + 1] = g; pixels.data[i + 2] = b
+      pixels.data[i + 3] = Math.round((0.35 + 0.65 * Math.sqrt(value)) * 255)
+    }))
+    context.putImageData(pixels, 0, 0)
+  }
+  scheduleRedraw()
+}, { immediate: true })
+watch(() => props.analysis && [props.analysis.layers, props.analysis.roi, props.analysis.roiDraft], scheduleRedraw)
+function scheduleRedraw() { nextTick(() => renderCanvas(true, getVideoElement()?.currentTime ?? 0)) }
+
 function analysisBoxes(time){
   if(!props.analysis.layers.boxes) return []
   let left=0,right=serverFrames.length-1,index=-1
   while(left<=right){const mid=(left+right)>>1;if(serverFrames[mid][0]<=time*1000+0.001){index=mid;left=mid+1}else right=mid-1}
   if(index<0 || time*1000-serverFrames[index][0]>Math.min(250,Math.max(50,1200/props.analysis.fps)))return []
   const held = time*1000-serverFrames[index][0] > 1000/props.analysis.fps
-  return serverFrames[index][1].map(p=>({x:p.bbox_xywhn[0],y:p.bbox_xywhn[1],width:p.bbox_xywhn[2],height:p.bbox_xywhn[3],_held:held,_labelText:` ${p.label} #${p.track_id} · ${held?'保持':'观测'}@${(p.timestamp_ms/1000).toFixed(2)}s `}))
+  return serverFrames[index][1].map(p=>({x:p.bbox_xywhn[0],y:p.bbox_xywhn[1],width:p.bbox_xywhn[2],height:p.bbox_xywhn[3],_held:held,_color:trackColor(p.track_id),_labelText:`#${p.track_id} ${p.label} · ${held?'保持 ':''}${(p.timestamp_ms/1000).toFixed(2)} s`}))
 }
-function renderAnalysisLayers(ctx,m,time){
-  const a=props.analysis,project=p=>[m.offsetX+p[0]*m.drawWidth,m.offsetY+p[1]*m.drawHeight]
+
+const TAIL_BANDS = 5
+function renderAnalysisLayers(ctx, m, time) {
+  const a = props.analysis, project = p => [m.offsetX + p[0] * m.drawWidth, m.offsetY + p[1] * m.drawHeight]
   ctx.save()
-  ctx.beginPath();ctx.rect(m.offsetX,m.offsetY,m.drawWidth,m.drawHeight);ctx.clip()
-  if(a.layers.heatmap && heatSurface){ctx.globalAlpha=a.layers.opacity;ctx.imageSmoothingEnabled=false;ctx.drawImage(heatSurface,m.offsetX,m.offsetY,m.drawWidth,m.drawHeight);ctx.globalAlpha=1}
-  if(a.layers.tails || a.layers.fullTracks){
-    ctx.strokeStyle='#38bdf8';ctx.lineWidth=2
-    for(const points of serverTails.values()){
-      let previous=null
-      ctx.beginPath()
-      for(const p of points){
-        if(!a.layers.fullTracks && p.timestamp_ms>time*1000)break
-        if(!a.layers.fullTracks && p.timestamp_ms<(time-a.layers.tailSeconds)*1000)continue
-        const [x,y]=project(p.center_xyn)
-        if(!previous || (p.timestamp_ms-previous.timestamp_ms)/1000>a.allowedGap || p.segment_id!==previous.segment_id)ctx.moveTo(x,y);else ctx.lineTo(x,y)
-        previous=p
+  ctx.beginPath(); ctx.rect(m.offsetX, m.offsetY, m.drawWidth, m.drawHeight); ctx.clip()
+  if (a.layers.heatmap && heatSurface) {
+    ctx.globalAlpha = a.layers.opacity
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(heatSurface, m.offsetX, m.offsetY, m.drawWidth, m.drawHeight)
+    ctx.globalAlpha = 1
+  }
+  if (a.layers.tails || a.layers.fullTracks) {
+    const now = time * 1000, tail = a.layers.tailSeconds * 1000
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round'
+    for (const [id, points] of serverTails) {
+      const color = trackColor(id)
+      // Bucket segments by age so each opacity band is one path.
+      const bands = Array.from({ length: TAIL_BANDS }, () => [])
+      let previous = null, head = null
+      for (const p of points) {
+        if (!a.layers.fullTracks && p.timestamp_ms > now) break
+        if (!a.layers.fullTracks && p.timestamp_ms < now - tail) { previous = null; continue }
+        if (previous && (p.timestamp_ms - previous.timestamp_ms) / 1000 <= a.allowedGap && p.segment_id === previous.segment_id) {
+          const age = a.layers.fullTracks ? 0 : (now - p.timestamp_ms) / tail
+          bands[Math.min(TAIL_BANDS - 1, Math.floor(age * TAIL_BANDS))].push(project(previous.center_xyn), project(p.center_xyn))
+        }
+        previous = p
+        head = p
       }
-      ctx.stroke()
+      ctx.strokeStyle = color
+      bands.forEach((segments, band) => {
+        if (!segments.length) return
+        ctx.globalAlpha = a.layers.fullTracks ? 0.75 : 1 - band / TAIL_BANDS * 0.85
+        ctx.lineWidth = a.layers.fullTracks ? 1.25 : 2 - band * 0.2
+        ctx.beginPath()
+        for (let i = 0; i < segments.length; i += 2) { ctx.moveTo(...segments[i]); ctx.lineTo(...segments[i + 1]) }
+        ctx.stroke()
+      })
+      ctx.globalAlpha = 1
+      if (head && !a.layers.fullTracks && now - head.timestamp_ms < 300) {
+        const [hx, hy] = project(head.center_xyn)
+        ctx.fillStyle = color
+        ctx.beginPath(); ctx.arc(hx, hy, 2.5, 0, Math.PI * 2); ctx.fill()
+      }
     }
   }
-  if(a.roi?.length){ctx.beginPath();a.roi.forEach((p,i)=>{const[x,y]=project(p);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y)});ctx.closePath();ctx.strokeStyle='#fbbf24';ctx.setLineDash([5,4]);ctx.lineWidth=2;ctx.stroke()}
+  if (a.roi?.length || a.layers.roiEditing) drawRoi(ctx, project)
   ctx.restore()
 }
+
+function drawRoi(ctx, project) {
+  const editing = props.analysis.layers.roiEditing
+  const points = (editing ? props.analysis.roiDraft : props.analysis.roi) || []
+  if (!points.length) return
+  ctx.beginPath()
+  points.forEach((p, i) => { const [x, y] = project(p); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y) })
+  ctx.closePath()
+  ctx.fillStyle = 'rgba(234, 191, 112, 0.08)'
+  ctx.fill()
+  ctx.strokeStyle = '#eabf70'; ctx.setLineDash([6, 4]); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([])
+  if (editing) {
+    ctx.fillStyle = '#eabf70'
+    for (const p of points) { const [x, y] = project(p); ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill() }
+  }
+}
+
 function pickRoiPoint(event){
   if(!props.analysis?.layers.roiEditing)return
   const video=getVideoElement(),surface=getPlaybackSurfaceElement()
@@ -1082,7 +1065,8 @@ function teardownPlaybackSurface() {
 }
 
 function syncPlaybackSurface() {
-  nextTick(() => {
+  loadArtplayer().then(() => nextTick()).then(() => {
+    if (unmounted || props.status !== 'playing') return
     ensureArtPlayer()
     const video = getVideoElement()
     if (!video) return
@@ -1148,51 +1132,50 @@ watch(() => props.logs, () => {
 }, { deep: true })
 
 onUnmounted(() => {
+  unmounted = true
   teardownPlaybackSurface()
   destroyArtPlayer()
 })
 
-// Timestamp helper
-function getTimestamp() {
-  return new Date().toISOString().split('T')[1]?.slice(0, 8) || '00:00:00'
-}
-
-function formatTime(sec) {
-  if (!sec || isNaN(sec)) return '00:00'
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
 </script>
 
 <style scoped>
-:deep(.art-video-player) {
-  width: 100%;
-  height: 100%;
-  background: #000;
-}
+.workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 40px; padding: 0 8px 0 12px; flex: none; box-shadow: inset 0 -1px 0 var(--line); }
+.title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.title-icon { color: var(--ink-3); }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.actions { display: flex; align-items: center; gap: 6px; }
+.body { position: relative; flex: 1; min-height: 0; }
+.idle { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; }
+.drop { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(560px, 100%); padding: 44px 32px; border-radius: var(--radius-lg); text-align: center; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); transition: background-color 150ms var(--ease), box-shadow 150ms var(--ease); }
+.drop.dragging { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.drop-icon { --icon-size: 28px; --icon-stroke: 1.25; color: var(--ink-3); margin-bottom: 4px; }
+.drop.dragging .drop-icon { color: var(--accent); }
+.drop h2 { font-size: var(--text-title); font-weight: 600; }
+.drop .note { max-width: 40ch; text-wrap: pretty; margin-bottom: 8px; }
+.uploading { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; }
+.upload-card { width: min(480px, 100%); padding: 16px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.upload-head { display: flex; justify-content: space-between; font-weight: 500; margin-bottom: 10px; }
+.progress { height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--accent); transition: width 200ms var(--ease); }
+.log { max-height: 128px; overflow-y: auto; margin-top: 12px; font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1.6; color: var(--ink-3); }
+.log .warn { color: var(--warn); }
+.log .err { color: var(--danger); }
+.stage { position: absolute; inset: 0; background: var(--stage); }
+.player { position: absolute; inset: 0; overflow: hidden; }
+.player-host { position: absolute; inset: 0; }
+.overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 20; }
+.hud { position: absolute; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: var(--radius); font-size: var(--text-caption); color: oklch(0.95 0.01 205); background: oklch(0.15 0.02 240 / 0.78); backdrop-filter: blur(6px); pointer-events: none; }
+.hud-top { top: 10px; left: 50%; translate: -50% 0; color: #eabf70; }
+.hud-legend { left: 10px; bottom: 58px; }
+.hud .ramp { width: 72px; height: 6px; border-radius: 1px; background: linear-gradient(90deg, #000004, #420a68, #932667, #dd513a, #fca50a, #fcffa4); }
+.hud .sep { width: 1px; height: 10px; background: oklch(1 0 0 / 0.25); }
 
-:deep(.art-video-player .art-video) {
-  object-fit: contain;
-  object-position: center center;
-  background: #000;
-}
-
-:deep(.art-video-player .art-layers) {
-  display: flex;
-}
-
-:deep(.art-video-player .art-mask),
-:deep(.art-video-player .art-bottom),
-:deep(.art-video-player .art-top),
-:deep(.art-video-player .art-contextmenus),
-:deep(.art-video-player .art-settings) {
-  border-radius: 0;
-}
-
-:deep(.art-video-player.art-fullscreen),
-:deep(.art-video-player.art-fullscreen-web) {
-  width: 100% !important;
-  height: 100% !important;
-}
+:deep(.art-video-player) { width: 100%; height: 100%; background: var(--stage); }
+:deep(.art-video-player .art-video) { object-fit: contain; object-position: center center; background: var(--stage); }
+:deep(.art-video-player .art-layers) { display: flex; }
+:deep(.art-video-player.art-fullscreen), :deep(.art-video-player.art-fullscreen-web) { width: 100% !important; height: 100% !important; }
+:deep(.art-video-player .art-bottom) { background-image: linear-gradient(to top, oklch(0 0 0 / 0.55), transparent); }
+:deep(.art-video-player .art-control) { font-variant-numeric: tabular-nums; }
 </style>

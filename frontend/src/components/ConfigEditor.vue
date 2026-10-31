@@ -1,34 +1,20 @@
 <template>
-  <div class="flex flex-col h-full bg-m3-surface/30 border border-m3-outline-variant/30 rounded-lg overflow-hidden relative">
-    <div class="flex items-center bg-transparent h-10 shrink-0 relative border-b border-m3-outline-variant/30 px-3 overflow-hidden">
-      <div class="flex items-center px-4 h-full border-b-2 border-m3-primary text-m3-primary cursor-pointer relative z-10 box-border group">
-        <span class="text-[11px] font-medium mr-2 text-m3-on-surface-variant bg-m3-surface-container py-0.5 px-1.5 rounded border border-m3-outline-variant/30 uppercase tracking-wider">配置</span>
-        <span class="font-medium text-[12px] text-m3-on-surface mr-3">{{ fileName }}</span>
-        <button
-          @click="$emit('close')"
-          class="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-m3-primary/20 text-m3-primary transition-all"
-        >
-          <i class="w-3.5 h-3.5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 block">
-              <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
-            </svg>
-          </i>
-        </button>
+  <div class="editor">
+    <header class="bar">
+      <div class="title">
+        <IconFileText class="title-icon" />
+        <span class="name">{{ fileName }}</span>
+        <span class="tag">旧检测管线</span>
       </div>
-
-      <div class="absolute right-3 top-0 bottom-0 flex items-center gap-2 z-20">
-        <span v-if="saveMessage" class="text-[11px] text-m3-on-surface-variant">{{ saveMessage }}</span>
-        <button
-          @click="$emit('save')"
-          class="px-3 py-1.5 text-[12px] rounded-md cursor-pointer bg-m3-primary text-m3-on-primary hover:bg-m3-primary/90 transition-colors font-medium"
-        >保存</button>
+      <div class="actions">
+        <span v-if="saveMessage" class="note" role="status">{{ saveMessage }}</span>
+        <span class="note hint">保存 <span class="kbd">Ctrl S</span></span>
+        <button class="btn btn-primary btn-sm" @click="$emit('save')">保存配置</button>
+        <UiTooltip text="关闭配置"><button class="btn btn-ghost btn-sm btn-icon" aria-label="关闭配置" @click="$emit('close')"><IconX /></button></UiTooltip>
       </div>
-    </div>
-
-    <div class="relative flex-1 min-h-0 bg-[#0f172a]">
-      <div ref="editorRef" class="absolute inset-0"></div>
-      <div class="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#0f172a] to-transparent"></div>
-    </div>
+    </header>
+    <p class="note intro">这些参数只影响旧的 HTTP 检测接口。鱼类分析的模型与阈值在每次分析时单独设置。</p>
+    <div class="code"><div ref="editorRef" class="code-host"></div></div>
   </div>
 </template>
 
@@ -41,6 +27,8 @@ import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { basicSetup } from 'codemirror'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { IconFileText, IconX } from '@tabler/icons-vue'
+import UiTooltip from './ui/UiTooltip.vue'
 
 const props = defineProps({
   fileName: {
@@ -163,7 +151,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-:deep(.cm-editor) {
-  height: 100%;
-}
+.editor { display: flex; flex-direction: column; height: 100%; min-height: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 40px; padding: 0 8px 0 12px; box-shadow: inset 0 -1px 0 var(--line); }
+.title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.title-icon { color: var(--ink-3); }
+.name { font-weight: 500; font-family: var(--font-mono); font-size: var(--text-small); }
+.actions { display: flex; align-items: center; gap: 8px; }
+.intro { padding: 8px 12px; box-shadow: inset 0 -1px 0 var(--line); }
+.code { position: relative; flex: 1; min-height: 0; background: #282c34; }
+.code-host { position: absolute; inset: 0; }
+:deep(.cm-editor) { height: 100%; }
+@media (max-width: 700px) { .hint { display: none; } }
 </style>

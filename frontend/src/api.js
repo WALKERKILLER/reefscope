@@ -64,3 +64,5 @@ export const getAnalysisTracks = (id, params, signal) => http.get(`/v1/analysis-
 export const getAnalysisHeatmap = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/heatmap`, { params, signal })
 export const getAnalysisSummary = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/summary`, { params, signal })
 export const downloadAnalysis = (id, resource, params) => http.get(`/v1/analysis-runs/${id}/${resource}`, { params, responseType: 'blob' })
+
+export const getHealth = (signal) => http.get('/health', { signal, timeout: 5000 })
