@@ -240,32 +240,18 @@
       </div>
     </footer>
 
-    <!-- Toast Container -->
-    <div class="fixed bottom-20 right-8 flex flex-col gap-4 z-50 pointer-events-none">
-      <div
-        v-for="toast in toasts"
-        :key="toast.id"
-        class="toast-enter w-[360px] m3-elevation-3 rounded-3xl flex items-start p-5 gap-4 pointer-events-auto"
-        :class="toastBg(toast.type)"
-      >
-        <div class="mt-1">
-          <div class="w-3.5 h-3.5 rounded-full" :class="toastIconColor(toast.type)"></div>
-        </div>
-        <div class="flex-1 flex flex-col">
-          <span class="text-[15px] font-bold text-m3-on-surface mb-1 tracking-wide">{{ toast.title }}</span>
-          <span v-if="toast.desc" class="text-[14px] text-m3-on-surface-variant leading-relaxed">{{ toast.desc }}</span>
-        </div>
-        <button
-          @click="dismissToast(toast.id)"
-          class="text-m3-on-surface-variant hover:text-m3-on-surface transition-colors p-2 rounded-full hover:bg-m3-outline-variant/20 m1-state-layer"
-        >&#10005;</button>
-      </div>
-    </div>
+    <UiToaster />
+    <UiDialogHost />
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
+import { ref, onBeforeUnmount, onMounted } from 'vue'
+import UiToaster from './components/ui/UiToaster.vue'
+import UiDialogHost from './components/ui/UiDialogHost.vue'
+import { isDark as isDarkTheme } from './lib/theme'
+import { toast } from './lib/toast'
+import { confirmDialog, promptDialog } from './lib/dialogs'
 import { uploadVideo, startProcess, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl } from './api'
 import Sidebar from './components/Sidebar.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
@@ -292,8 +278,6 @@ const currentTime = ref(0)
 const fileName = ref('')
 const activePanel = ref('files')
 const activeView = ref('console')
-const isDarkTheme = ref(true)
-const toasts = ref([])
 const currentTaskId = ref(null)
 const leftPanelWidth = ref(280)
 const rightPanelWidth = ref(300)
@@ -324,14 +308,6 @@ let stopResizeListener = null
 let configSaveTimer = null
 
 // --- Theme ---
-watch(isDarkTheme, (val) => {
-  if (val) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-}, { immediate: true })
-
 function toggleTheme() {
   isDarkTheme.value = !isDarkTheme.value
 }
@@ -401,26 +377,7 @@ function startResize(side, event) {
 
 // --- Toast ---
 function showToast(title, desc, type = 'info') {
-  const id = Date.now().toString()
-  toasts.value = [...toasts.value, { id, title, desc, type }]
-  setTimeout(() => {
-    dismissToast(id)
-  }, 4000)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter(t => t.id !== id)
-}
-
-function toastBg(type) {
-  return 'bg-m3-surface-container-highest'
-}
-
-function toastIconColor(type) {
-  if (type === 'warn') return 'bg-m3-warning'
-  if (type === 'alert') return 'bg-m3-error'
-  if (type === 'success') return 'bg-m3-success'
-  return 'bg-m3-primary'
+  toast({ title, desc, type })
 }
 
 function updatePipelineSettings(patch) {
@@ -790,7 +747,7 @@ async function handleSingleFileAction({ action, item }) {
 
   try {
     if (action === 'delete') {
-      const confirmed = window.confirm(`确认删除 ${item.name} 吗？这会同时删除本地文件和数据库记录。`)
+      const confirmed = await confirmDialog({ title: `删除“${item.name}”？`, description: '本地视频文件和数据库记录会一起删除，无法恢复。', confirmLabel: '删除视频', danger: true })
       if (!confirmed) return
       await mutateTask(taskId, { action: 'delete' })
       removeHistoryByIds([item.id])
@@ -802,7 +759,7 @@ async function handleSingleFileAction({ action, item }) {
     }
 
     if (action === 'rename') {
-      const nextName = window.prompt('输入新的文件名', item.name)
+      const nextName = await promptDialog({ title: '重命名视频', label: '文件名', value: item.name, confirmLabel: '重命名' })
       if (!nextName || nextName.trim() === item.name) return
       const res = await mutateTask(taskId, { action: 'rename', name: nextName.trim() })
       syncTaskInHistory(res.data)
@@ -853,7 +810,7 @@ async function handleBatchFileAction({ action }) {
 
   try {
     if (action === 'delete') {
-      const confirmed = window.confirm(`确认批量删除 ${selectedItems.length} 个文件吗？这会同时删除本地文件和数据库记录。`)
+      const confirmed = await confirmDialog({ title: `删除 ${selectedItems.length} 个视频？`, description: '本地视频文件和数据库记录会一起删除，无法恢复。', confirmLabel: `删除 ${selectedItems.length} 个视频`, danger: true })
       if (!confirmed) return
       await batchMutateTasks({ action: 'delete', task_ids: taskIds })
       removeHistoryByIds(selectedItems.map(item => item.id))
