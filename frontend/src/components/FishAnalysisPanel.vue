@@ -1,181 +1,624 @@
 <template>
-  <aside class="analysis-panel" aria-label="鱼类分析">
-    <header><h2>鱼类分析</h2><button @click="boot" :disabled="busy">刷新</button></header>
-    <p v-if="demo" class="notice">合成演示 · 训练拼图重复帧，不代表真实场景精度</p>
-    <p v-if="error" class="error" role="alert">{{ error }} <button @click="boot">重新连接</button></p>
-    <form @submit.prevent="createRun" class="section">
-      <label>注册模型<select v-model="modelId" :disabled="busy"><option value="">选择模型</option><option v-for="model in models" :value="model.id" :key="model.id">{{ model.id }}</option></select></label>
-      <p v-if="!models.length && !busy" class="muted">暂无注册模型。请先在后端注册授权权重。</p>
-      <div class="pair"><label>置信度<input v-model.number="confidence" type="number" min="0.01" max="1" step="0.01" required /></label><label>镜头<select v-model="motion"><option value="unknown">未知</option><option value="fixed">固定</option><option value="moving">移动</option></select></label></div>
-      <button class="primary" :disabled="busy || !modelId">{{ busy ? '请求中…' : '新建 GPU 优先分析' }}</button>
-      <p class="muted">独立 Worker 执行；无 CUDA 时回退 CPU，结果注明实际设备。</p>
-    </form>
-    <section class="section">
-      <label>分析历史<select v-model="selectedId"><option value="">尚未选择 Run</option><option v-for="(item,index) in runs" :key="item.run_id" :value="item.run_id">{{ index + 1 }} · {{ states[item.status] || item.status }} · {{ item.run_id.slice(0,8) }}</option></select></label>
-      <div v-if="run" class="run-status" aria-live="polite"><strong>{{ states[run.status] || run.status }}</strong><span>{{ run.progress }}% · attempt {{ run.attempt }}/3</span></div>
-      <p v-if="run?.status === 'queued'" class="muted">等待独立 Worker 领取，页面可以继续播放。</p>
-      <p v-if="run?.status === 'running'" class="muted">正在顺序追踪，完成后读取已校验产物。</p>
-      <p v-if="run?.status === 'failed'" class="error">{{ errorText(run.error_code) }}</p>
-      <button v-if="run?.status === 'failed' && run.attempt < 3" @click="retryRun" :disabled="busy">重试此 Run</button>
-      <p v-if="run?.summary?.device" class="muted">实际设备 {{ run.summary.device }} · {{ run.summary.frame_count }} 帧</p>
+  <aside class="inspector" aria-label="鱼类分析">
+    <header class="head">
+      <div class="min-w-0">
+        <h2>鱼类分析</h2>
+        <p class="note truncate" :title="fileName">{{ fileName }}</p>
+      </div>
+      <UiTooltip text="刷新模型与分析记录">
+        <button class="btn btn-ghost btn-icon" @click="boot" :disabled="busy" aria-label="刷新模型与分析记录"><IconRefresh /></button>
+      </UiTooltip>
+    </header>
+
+    <p v-if="demo" class="banner warn"><IconAlertTriangle />合成演示视频：画面由训练拼图重复生成，结果不代表真实场景精度。</p>
+    <p v-if="error" class="banner danger" role="alert"><IconAlertTriangle /><span>{{ error }}</span><button class="link" @click="boot">重新连接</button></p>
+
+    <section class="run" aria-label="分析记录">
+      <div class="run-row">
+        <div class="field grow">
+          <span id="run-label">分析记录</span>
+          <UiSelect v-model="selectedId" :options="runOptions" :disabled="!runs.length" placeholder="还没有分析" aria-label="分析记录" />
+        </div>
+        <UiTooltip text="新建分析">
+          <button class="btn btn-icon" :class="{ 'is-on': createOpen }" :aria-expanded="createOpen" aria-controls="create-run" aria-label="新建分析" @click="createOpen = !createOpen"><IconPlus /></button>
+        </UiTooltip>
+      </div>
+
+      <p v-if="pendingNewer" class="note pending"><IconClock />有 {{ pendingNewer }} 次更新的分析在排队或执行中，完成后可在分析记录中切换。</p>
+      <div v-if="run" class="status" aria-live="polite">
+        <span class="state" :data-state="run.status"><span class="dot" />{{ states[run.status] || run.status }}</span>
+        <span class="note tnum">第 {{ run.attempt }}/3 次尝试</span>
+      </div>
+      <div v-if="run && (run.status === 'queued' || run.status === 'running')" class="progress" role="progressbar" :aria-valuenow="run.progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析进度"><span :style="{ width: `${run.progress}%` }" /></div>
+      <p v-if="run?.status === 'queued'" class="note">等待 Worker 领取。可以继续播放视频。</p>
+      <p v-if="run?.status === 'running'" class="note tnum">正在逐帧追踪 · {{ run.progress }}%</p>
+      <div v-if="run?.status === 'failed'" class="failed">
+        <p>{{ errorText(run.error_code) }}</p>
+        <button v-if="run.attempt < 3" class="btn btn-sm" @click="retryRun" :disabled="busy"><IconRefresh />重试分析</button>
+      </div>
+      <dl v-if="run?.summary?.device" class="meta">
+        <div><dt>设备</dt><dd class="mono">{{ run.summary.device }}</dd></div>
+        <div><dt>帧</dt><dd class="tnum">{{ run.summary.frame_count?.toLocaleString('zh-CN') }}<template v-if="run.summary.fps"> · {{ run.summary.fps.toFixed(1) }} fps</template></dd></div>
+        <div><dt>模型</dt><dd class="mono truncate" :title="run.config_snapshot.models.fish">{{ run.config_snapshot.models.fish }}</dd></div>
+        <div v-if="run.summary.processed_fps"><dt>处理速度</dt><dd class="tnum">{{ run.summary.processed_fps.toFixed(1) }} 帧/秒</dd></div>
+      </dl>
+
+      <form v-if="createOpen || (!runs.length && !busy)" id="create-run" class="create" @submit.prevent="createRun">
+        <div class="field">
+          <span>注册模型</span>
+          <UiSelect v-model="modelId" :options="modelOptions" :disabled="busy" placeholder="选择模型" aria-label="注册模型" />
+        </div>
+        <p v-if="!models.length && !busy" class="note">还没有注册模型。在后端运行 register_fish_model 注册授权权重后刷新。</p>
+        <div class="pair">
+          <label class="field"><span>置信度阈值</span><input class="input" v-model.number="confidence" type="number" min="0.01" max="1" step="0.01" required /></label>
+          <div class="field"><span>镜头</span><UiSelect v-model="motion" :options="motionOptions" aria-label="镜头运动" /></div>
+        </div>
+        <button class="btn btn-primary btn-block" :disabled="busy || !modelId">{{ busy ? '正在提交…' : '开始分析' }}</button>
+        <p class="note">由独立 Worker 执行，优先使用 GPU；没有 CUDA 时使用 CPU，并记录实际设备。</p>
+      </form>
     </section>
-    <section class="section"><h3>播放叠加</h3>
-      <div class="checks"><label><input type="checkbox" v-model="layers.boxes" />框与真实 ID</label><label><input type="checkbox" v-model="layers.tails" />观测尾迹</label><label><input type="checkbox" v-model="layers.heatmap" />活动热图</label><label><input type="checkbox" v-model="layers.fullTracks" />全窗轨迹</label></div>
-      <label>尾迹时长<select v-model.number="layers.tailSeconds"><option :value="5">5 秒</option><option :value="10">10 秒</option><option :value="30">30 秒</option></select></label>
-      <label>热图透明度 {{ Math.round(layers.opacity*100) }}%<input type="range" min="0" max="1" step="0.05" v-model.number="layers.opacity" /></label>
-      <p class="notice">画面相对占据度，非海底地理坐标。颜色为归一化显示，原始单位为 track-seconds。</p>
-      <p v-if="trackLoading" class="muted" role="status">加载当前播放窗口…</p><p v-if="trackWarning" class="error">{{ trackWarning }}</p>
-    </section>
-    <form class="section" @submit.prevent="applyFilters"><h3>统计窗口与筛选</h3>
-      <div class="pair"><label>起点（秒）<input v-model.number="filterStart" type="number" min="0" step="0.1" required /></label><label>终点（秒，空为全片）<input v-model="filterEnd" type="number" min="0" step="0.1" /></label></div>
-      <div class="pair"><label>类别<select v-model="classId"><option value="">全部类别</option><option v-for="(label,id) in selectedModel?.labels || {}" :key="id" :value="id">{{ label }}</option></select></label><label>真实 track ID<input v-model="trackId" type="number" min="0" step="1" placeholder="全部" /></label></div>
-      <label>画面 ROI<select v-model="roiPreset"><option value="all">全画面</option><option value="left">左半画面</option><option value="center">中央区域</option><option value="custom">自定义多边形</option></select></label>
-      <template v-if="roiPreset === 'custom'"><label>归一化顶点 JSON<textarea v-model="roiText" rows="3" placeholder="[[0,0],[1,0],[1,1]]"></textarea></label><div class="pair"><button type="button" @click="startRoi">{{ layers.roiEditing ? '继续在视频点选' : '在视频上点选' }}</button><button type="button" @click="clearRoi">清空顶点</button></div></template>
-      <button :disabled="run?.status !== 'completed' || statsLoading">{{ statsLoading ? '计算中…' : '应用窗口与筛选' }}</button>
-      <p class="muted">ROI 筛选热图与统计；框和尾迹保留上下文。窗口左闭右开。控件修改后需点击应用。</p><p v-if="summary" class="muted">已应用：{{ applied.start_ms / 1000 }} 至 {{ applied.end_ms == null ? '全片结束' : applied.end_ms / 1000 }} 秒。导出沿用此窗口。</p>
-    </form>
-    <section class="section"><h3>播放窗口观测</h3><p v-if="!visibleTracks.length" class="muted">当前窗口无追踪观测。可播放或拖动进度条。</p><div class="track-events"><button v-for="point in visibleTracks" :key="point.track_id" @click="emit('seek',point.timestamp_ms/1000)">{{ (point.timestamp_ms/1000).toFixed(2) }}s · {{ point.label }} #{{ point.track_id }}</button></div><p class="muted">最多列出当前缓存窗口的 12 条轨迹入口。点击定位真实观测，使用 ID 筛选查看更多。</p></section>
-    <section class="section"><h3>证据摘要</h3>
-      <dl v-if="summary"><template v-for="(title,key) in metricNames" :key="key"><dt>{{ title }}</dt><dd :title="summary.metrics[key]?.reason || summary.metrics[key]?.denominator">{{ metricText(summary.metrics[key]) }}</dd></template></dl>
-      <p v-else class="muted">完成 Run 后查看同源统计。缺失数据不会补为零。</p>
-      <p class="muted">ID 数不是去重鱼类个体数；平均置信度不是准确率。无独立 GT，AP50 / IDF1 为 N/A。无珊瑚分割与底栖 ROI，珊瑚覆盖率为 N/A。</p>
-      <div class="exports"><button @click="download('summary','json')" :disabled="!summary">分析 JSON</button><button @click="download('heatmap','csv')" :disabled="!summary">热图 CSV</button><button @click="download('heatmap','json')" :disabled="!summary">热图 JSON</button><button @click="exportTracks" :disabled="!tracks.length || !!trackWarning || trackLoading">当前播放窗口 JSONL</button></div>
-      <p v-if="message" class="muted" role="status">{{ message }}</p>
-      <details v-if="run"><summary>来源与限制</summary><p class="muted break">Run {{ run.run_id }}<br />模型 {{ run.config_snapshot.models.fish }}<br />SHA256 {{ run.config_snapshot.model_sha256 }}<br />{{ summary?.heatmap?.algorithm_version || '等待计算' }}</p></details>
-    </section>
+
+    <UiTabs v-model="tab" :items="tabItems" aria-label="分析视图" class="tabs">
+      <template #layers>
+        <div class="pane">
+          <div class="layer">
+            <UiSwitch id="layer-boxes" v-model="layers.boxes" />
+            <label for="layer-boxes"><strong>检测框与 ID</strong><span class="note">颜色区分轨迹 ID；虚线框表示沿用上一观测</span></label>
+          </div>
+          <div class="layer">
+            <UiSwitch id="layer-tails" v-model="layers.tails" />
+            <label for="layer-tails"><strong>观测尾迹</strong><span class="note">越旧越淡；超过允许间隔即断开</span></label>
+          </div>
+          <UiSegmented v-if="layers.tails" class="layer-extra" v-model="layers.tailSeconds" :options="tailOptions" aria-label="尾迹时长" />
+          <div class="layer">
+            <UiSwitch id="layer-full" v-model="layers.fullTracks" />
+            <label for="layer-full"><strong>全程轨迹</strong><span class="note">显示统计窗口内的全部轨迹</span></label>
+          </div>
+          <div class="layer">
+            <UiSwitch id="layer-heat" v-model="layers.heatmap" />
+            <label for="layer-heat"><strong>停留热图</strong><span class="note">画面相对占据度，非海底地理坐标</span></label>
+          </div>
+          <div v-if="layers.heatmap" class="layer-extra heat-extra">
+            <div class="ramp" aria-hidden="true" />
+            <div class="ramp-scale tnum"><span>0</span><span>峰值 {{ heatPeak }}</span></div>
+            <div class="field"><span>不透明度 · <span class="tnum">{{ Math.round(layers.opacity * 100) }}%</span></span><UiSlider v-model="layers.opacity" :min="0.1" :max="1" :step="0.05" aria-label="热图不透明度" /></div>
+          </div>
+          <p v-if="trackLoading" class="note" role="status">正在加载播放窗口的轨迹…</p>
+          <p v-if="trackWarning" class="note warn-text">{{ trackWarning }}</p>
+
+          <div class="block">
+            <div class="block-head"><h3>播放窗口内的轨迹</h3><span class="note tnum">{{ visibleTracks.length }}</span></div>
+            <p v-if="!visibleTracks.length" class="note">{{ run?.status === 'completed' ? '这一段没有追踪观测。拖动进度条或在时间线上点选。' : '分析完成后显示。' }}</p>
+            <div v-else class="chips">
+              <button v-for="point in visibleTracks" :key="point.track_id" class="chip" @click="emit('seek', point.timestamp_ms / 1000)" :aria-label="`跳到 ${point.track_id} 号轨迹的 ${(point.timestamp_ms / 1000).toFixed(1)} 秒`">
+                <span class="swatch" :style="{ background: trackColor(point.track_id) }" />#{{ point.track_id }}<span class="tnum faint">{{ (point.timestamp_ms / 1000).toFixed(1) }} s</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template #stats>
+        <div class="pane">
+          <form class="filters" @submit.prevent="applyFilters">
+            <div class="pair">
+              <label class="field"><span>起点（秒）</span>
+                <span class="with-action"><input class="input" v-model.number="filterStart" type="number" min="0" step="0.1" required /><UiTooltip text="设为当前时刻"><button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="起点设为当前时刻" @click="filterStart = Number(currentTime.toFixed(1))"><IconFocus2 /></button></UiTooltip></span>
+              </label>
+              <label class="field"><span>终点（秒）</span>
+                <span class="with-action"><input class="input" v-model="filterEnd" type="number" min="0" step="0.1" placeholder="片尾" /><UiTooltip text="设为当前时刻"><button type="button" class="btn btn-ghost btn-sm btn-icon" aria-label="终点设为当前时刻" @click="filterEnd = Number(currentTime.toFixed(1))"><IconFocus2 /></button></UiTooltip></span>
+              </label>
+            </div>
+            <div class="pair">
+              <div class="field"><span>类别</span><UiSelect v-model="classId" :options="classOptions" aria-label="类别" /></div>
+              <label class="field"><span>轨迹 ID</span><input class="input" v-model="trackId" type="number" min="0" step="1" placeholder="全部" /></label>
+            </div>
+            <div class="field">
+              <span>画面 ROI</span>
+              <UiSegmented v-model="roiPreset" :options="roiOptions" block aria-label="画面 ROI" />
+            </div>
+            <template v-if="roiPreset === 'custom'">
+              <label class="field"><span>顶点（归一化坐标 JSON）</span><textarea class="input" v-model="roiText" rows="2" placeholder="[[0.1,0.2],[0.8,0.2],[0.5,0.9]]" /></label>
+              <div class="row">
+                <button type="button" class="btn btn-sm" :class="{ 'is-on': layers.roiEditing }" :aria-pressed="layers.roiEditing" @click="startRoi"><IconPointer />{{ layers.roiEditing ? '点选中，再按一次结束' : '在画面上点选' }}</button>
+                <button type="button" class="btn btn-ghost btn-sm" @click="clearRoi">清空顶点</button>
+                <span class="note tnum">{{ roiCount }} 个顶点</span>
+              </div>
+            </template>
+            <button class="btn btn-primary btn-block" :disabled="run?.status !== 'completed' || statsLoading">{{ statsLoading ? '正在计算…' : dirty ? '应用筛选' : '重新计算' }}</button>
+            <p class="note">窗口左闭右开。ROI 只筛选热图与统计，画面上的框和尾迹保持完整。</p>
+          </form>
+
+          <p v-if="summary" class="applied"><span class="eyebrow">已应用</span><span class="tnum">{{ appliedText }}</span></p>
+
+          <div v-if="summary" class="kpis">
+            <div v-for="(meta, key) in primaryMetrics" :key="key" class="kpi" :title="summary.metrics[key]?.denominator">
+              <span class="eyebrow">{{ meta.title }}</span>
+              <strong class="tnum">{{ metricValue(summary.metrics[key], meta.digits) ?? 'N/A' }}</strong>
+              <span class="note">{{ meta.unit }}</span>
+            </div>
+          </div>
+          <p v-else class="note pad">{{ run?.status === 'completed' ? '正在读取统计…' : '分析完成后，这里显示同源统计。缺失的数据不会补成 0。' }}</p>
+
+          <div v-if="summary" class="block">
+            <div class="block-head"><h3>需要真值的指标</h3></div>
+            <dl class="na-list">
+              <div v-for="(title, key) in truthMetrics" :key="key"><dt>{{ title }}</dt><dd><span class="tag">N/A</span><span class="note">{{ MISSING_REASONS[summary.metrics[key]?.reason] || summary.metrics[key]?.reason }}</span></dd></div>
+            </dl>
+          </div>
+
+          <div v-if="classRows.length" class="block">
+            <div class="block-head"><h3>类别观测次数</h3></div>
+            <div v-for="row in classRows" :key="row.id" class="bar-row">
+              <span class="truncate">{{ row.label }}</span>
+              <span class="bar"><span :style="{ width: `${row.share * 100}%` }" /></span>
+              <span class="tnum">{{ row.count.toLocaleString('zh-CN') }}</span>
+            </div>
+          </div>
+
+          <div v-if="!wall && (heatmap || overview)" class="block figures">
+            <HeatmapFigure v-if="heatmap" :heatmap="heatmap" :roi="applied.roi" :aspect="aspect" compact />
+            <TrajectoryFigure v-if="overview" :spans="overview.spans" :window="applied" :roi="applied.roi" :aspect="aspect" :truncated="overview.truncated" compact />
+          </div>
+
+          <div class="block">
+            <div class="block-head"><h3>导出</h3></div>
+            <div class="exports">
+              <button class="btn btn-sm" @click="download('summary', 'json')" :disabled="!summary"><IconDownload />统计 JSON</button>
+              <button class="btn btn-sm" @click="download('heatmap', 'csv')" :disabled="!summary"><IconDownload />热图 CSV</button>
+              <button class="btn btn-sm" @click="download('heatmap', 'json')" :disabled="!summary"><IconDownload />热图 JSON</button>
+              <UiTooltip text="只包含当前播放缓存的观测"><button class="btn btn-sm" @click="exportTracks" :disabled="!tracks.length || !!trackWarning || trackLoading"><IconDownload />播放窗口 JSONL</button></UiTooltip>
+            </div>
+            <p class="note">导出沿用已应用的窗口与筛选，并附带来源元数据。</p>
+            <p v-if="message" class="note" role="status">{{ message }}</p>
+          </div>
+        </div>
+      </template>
+
+      <template #source>
+        <div class="pane">
+          <dl v-if="run" class="provenance">
+            <div><dt>分析 ID</dt><dd><span class="mono">{{ run.run_id }}</span><UiTooltip text="复制"><button class="btn btn-ghost btn-sm btn-icon" aria-label="复制分析 ID" @click="copy(run.run_id)"><IconCopy /></button></UiTooltip></dd></div>
+            <div><dt>模型</dt><dd class="mono">{{ run.config_snapshot.models.fish }}</dd></div>
+            <div><dt>权重 SHA256</dt><dd><span class="mono hash">{{ run.config_snapshot.model_sha256 }}</span><UiTooltip text="复制"><button class="btn btn-ghost btn-sm btn-icon" aria-label="复制权重哈希" @click="copy(run.config_snapshot.model_sha256)"><IconCopy /></button></UiTooltip></dd></div>
+            <div><dt>置信度 / IoU 阈值</dt><dd class="tnum">{{ run.config_snapshot.settings.confidence_threshold }} / {{ run.config_snapshot.settings.iou_threshold }}</dd></div>
+            <div><dt>允许观测间隔</dt><dd class="tnum">{{ run.config_snapshot.settings.allowed_gap_seconds }} s</dd></div>
+            <div><dt>镜头运动</dt><dd>{{ motions[run.config_snapshot.settings.camera_motion] || run.config_snapshot.settings.camera_motion }}</dd></div>
+            <div><dt>热图算法</dt><dd class="mono">{{ summary?.heatmap?.algorithm_version || '等待计算' }}</dd></div>
+            <div v-if="run.summary?.timestamp_fallback_frames"><dt>按帧号推算时间</dt><dd class="tnum">{{ run.summary.timestamp_fallback_frames }} 帧</dd></div>
+          </dl>
+          <p v-else class="note">选择一次分析后显示来源。</p>
+          <div class="block">
+            <div class="block-head"><h3>解读限制</h3></div>
+            <ul class="limits">
+              <li>轨迹 ID 只在本次分析内有效；遮挡后重新出现会计为新 ID，不等于鱼类个体数。</li>
+              <li>平均置信度是模型输出的描述统计，不是准确率。</li>
+              <li>没有独立测试真值时，AP50、IDF1 与珊瑚覆盖率保持 N/A。</li>
+              <li v-for="item in summary?.limitations || []" :key="item">{{ item }}</li>
+            </ul>
+          </div>
+        </div>
+      </template>
+    </UiTabs>
   </aside>
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount, shallowRef, markRaw } from 'vue'
 import { listAnalysisModels, listAnalysisRuns, createAnalysisRun, getAnalysisRun, retryAnalysisRun, getAnalysisTracks, getAnalysisHeatmap, getAnalysisSummary, downloadAnalysis } from '../api'
-const props = defineProps({ taskId: Number, currentTime: { type:Number, default:0 }, fileName:String })
-const emit = defineEmits(['analysis','seek'])
-const models=ref([]), runs=ref([]), modelId=ref(''), selectedId=ref(''), run=ref(null), tracks=ref([]), heatmap=ref(null), summary=ref(null)
-const busy=ref(false), error=ref(''), message=ref(''), statsLoading=ref(false), trackLoading=ref(false), trackWarning=ref('')
-const confidence=ref(0.25), motion=ref('unknown'), filterStart=ref(0), filterEnd=ref(''), classId=ref(''), trackId=ref(''), roiPreset=ref('all'), roiText=ref('[]')
-const layers=reactive({boxes:true,tails:true,heatmap:false,opacity:0.45,tailSeconds:10,roiEditing:false,fullTracks:false})
-const applied=ref({start_ms:0})
-const states={queued:'排队中',running:'分析中',completed:'已完成',failed:'失败'}
-const metricNames={observed_track_count:'观测 ID 数',tracked_observation_count:'追踪观测次数',track_seconds:'有效停留（track-s）',mean_confidence:'平均置信度',ap50:'独立测试 AP50',idf1:'人工真值 IDF1',coral_cover:'珊瑚覆盖率'}
-const visibleTracks=computed(()=>[...new Map(tracks.value.map(p=>[p.track_id,p])).values()].slice(0,12))
-const demo=computed(()=>/synthetic|合成|DEMO/i.test(props.fileName || ''))
-const selectedModel=computed(()=>models.value.find(m=>m.id===(run.value?.config_snapshot.models.fish || modelId.value)))
-let generation=0, pollTimer, bootAbort, pollAbort, statsAbort, trackAbort, disposed=false
-function cancelled(e) { return e?.code==='ERR_CANCELED' || e?.name==='AbortError' }
+import { IconClock, IconRefresh, IconAlertTriangle, IconPlus, IconDownload, IconCopy, IconFocus2, IconPointer } from '@tabler/icons-vue'
+import UiSelect from './ui/UiSelect.vue'
+import UiSwitch from './ui/UiSwitch.vue'
+import UiSlider from './ui/UiSlider.vue'
+import UiSegmented from './ui/UiSegmented.vue'
+import UiTabs from './ui/UiTabs.vue'
+import UiTooltip from './ui/UiTooltip.vue'
+import HeatmapFigure from './HeatmapFigure.vue'
+import TrajectoryFigure from './TrajectoryFigure.vue'
+import { trackColor } from '../lib/palette'
+import { trackSpans, observationsPerFrame } from '../lib/tracks'
+import { metricValue, MISSING_REASONS, formatDateTime } from '../lib/format'
+
+const props = defineProps({ taskId: Number, currentTime: { type: Number, default: 0 }, fileName: String, wall: Boolean })
+const emit = defineEmits(['analysis', 'seek', 'toast'])
+
+const TRACK_BUDGET = 20000
+const models = ref([]), runs = ref([]), modelId = ref(''), selectedId = ref(''), run = ref(null)
+const tracks = shallowRef([]), heatmap = shallowRef(null), summary = shallowRef(null), overview = shallowRef(null)
+const busy = ref(false), error = ref(''), message = ref(''), statsLoading = ref(false), trackLoading = ref(false), trackWarning = ref('')
+const confidence = ref(0.25), motion = ref('unknown'), filterStart = ref(0), filterEnd = ref(''), classId = ref(''), trackId = ref(''), roiPreset = ref('all'), roiText = ref('[]')
+const layers = reactive({ boxes: true, tails: true, heatmap: false, opacity: 0.6, tailSeconds: 10, roiEditing: false, fullTracks: false })
+const applied = ref({ start_ms: 0 })
+const createOpen = ref(false), tab = ref('layers')
+
+const states = { queued: '排队中', running: '分析中', completed: '已完成', failed: '失败' }
+const motions = { unknown: '未知', fixed: '固定', moving: '移动' }
+const roiPresets = { all: '全画面', left: '左半', center: '中央', custom: '自定义' }
+const primaryMetrics = {
+  observed_track_count: { title: '观测 ID 数', unit: '个 ID，非个体数', digits: 0 },
+  tracked_observation_count: { title: '追踪观测次数', unit: '次（同帧同 ID 去重）', digits: 0 },
+  track_seconds: { title: '累计停留', unit: 'track-s', digits: 1 },
+  mean_confidence: { title: '平均置信度', unit: '模型输出，非准确率', digits: 3 }
+}
+const tailOptions = [5, 10, 30].map(value => ({ value, label: `${value} 秒` }))
+const motionOptions = Object.entries(motions).map(([value, label]) => ({ value, label }))
+const roiOptions = Object.entries(roiPresets).map(([value, label]) => ({ value, label }))
+const truthMetrics = { ap50: '独立测试 AP50', idf1: '人工真值 IDF1', coral_cover: '珊瑚覆盖率' }
+
+const tabItems = computed(() => [{ value: 'layers', label: '图层' }, { value: 'stats', label: '统计' }, { value: 'source', label: '来源' }])
+const runOptions = computed(() => runs.value.map((item, index) => ({ value: item.run_id, label: `第 ${runs.value.length - index} 次 · ${states[item.status] || item.status}`, hint: formatDateTime(item.created_at) })))
+const modelOptions = computed(() => models.value.map(model => ({ value: model.id, label: model.id })))
+const classOptions = computed(() => [{ value: '', label: '全部类别' }, ...Object.entries(selectedModel.value?.labels || {}).map(([value, label]) => ({ value, label }))])
+const visibleTracks = computed(() => [...new Map(tracks.value.map(p => [p.track_id, p])).values()].slice(0, 24))
+const pendingNewer = computed(() => {
+  const index = runs.value.findIndex(r => r.run_id === selectedId.value)
+  return index > 0 ? runs.value.slice(0, index).filter(r => r.status === 'queued' || r.status === 'running').length : 0
+})
+const demo = computed(() => /synthetic|合成|DEMO/i.test(props.fileName || ''))
+const selectedModel = computed(() => models.value.find(m => m.id === (run.value?.config_snapshot.models.fish || modelId.value)))
+const aspect = computed(() => run.value?.summary?.width && run.value?.summary?.height ? run.value.summary.width / run.value.summary.height : 16 / 9)
+const heatPeak = computed(() => {
+  const peak = heatmap.value ? Math.max(0, ...heatmap.value.values_raw.flat()) : 0
+  return `${peak.toFixed(2)} track-s`
+})
+const roiCount = computed(() => { try { const v = JSON.parse(roiText.value); return Array.isArray(v) ? v.length : 0 } catch { return 0 } })
+const classRows = computed(() => {
+  const counts = summary.value?.class_observation_counts || {}
+  const total = Object.values(counts).reduce((a, b) => a + b, 0)
+  return Object.entries(counts).map(([id, count]) => ({ id, count, label: selectedModel.value?.labels?.[id] ?? `类别 ${id}`, share: total ? count / total : 0 })).sort((a, b) => b.count - a.count)
+})
+const appliedText = computed(() => {
+  const a = applied.value
+  const range = `${(a.start_ms / 1000).toFixed(1)}–${a.end_ms == null ? '片尾' : `${(a.end_ms / 1000).toFixed(1)} s`}`
+  const label = a.class_id != null ? (selectedModel.value?.labels?.[a.class_id] ?? `类别 ${a.class_id}`) : '全部类别'
+  const id = a.track_id != null ? `ID #${a.track_id}` : '全部 ID'
+  const roi = a.roi ? `ROI ${a.roi.length} 点` : '全画面'
+  return [range, label, id, roi].join(' · ')
+})
+const dirty = computed(() => {
+  const next = draftParams()
+  return !next || JSON.stringify(next) !== JSON.stringify(applied.value)
+})
+
+let generation = 0, pollTimer, bootAbort, pollAbort, statsAbort, trackAbort, overviewAbort, disposed = false
+function cancelled(e) { return e?.code === 'ERR_CANCELED' || e?.name === 'AbortError' }
+
 function errorText(code) {
   const messages = {
-    invalid_settings:'参数无效，请检查阈值和图像尺寸', unknown_model:'模型不存在，请刷新模型列表',
-    retry_not_allowed:'该 Run 当前不可重试，或已达到次数上限', worker_lease_expired:'Worker 心跳已过期，请确认 Worker 已恢复后重试',
-    model_hash_mismatch:'权重与注册 hash 不一致，请重新注册为新模型版本', invalid_video:'源视频不可读取，请检查本地文件和权限',
-    video_decode_failed:'视频解码失败，请检查 MP4 文件是否完整', video_incomplete:'视频提前结束，请检查源文件',
-    video_time_reversed:'视频时间戳倒退，已停止分析以保护轨迹时间', video_time_unavailable:'缺少可靠时间戳与帧率，无法生成轨迹',
-    analysis_failed:'分析失败，请查看本地 Worker 的运行状态', invalid_artifacts:'产物校验失败，未发布不完整结果'
+    invalid_settings: '参数无效。检查阈值与图像尺寸后重试。', unknown_model: '找不到该模型。刷新模型列表后重试。',
+    retry_not_allowed: '这次分析当前不能重试，或已用完 3 次机会。', worker_lease_expired: 'Worker 心跳超时。确认 Worker 已恢复后重试。',
+    model_hash_mismatch: '权重与注册哈希不一致。请把新权重注册为新的模型版本。', invalid_video: '无法读取源视频。检查本地文件与权限。',
+    video_decode_failed: '视频解码失败。检查 MP4 文件是否完整。', video_incomplete: '视频提前结束。检查源文件是否完整。',
+    video_time_reversed: '视频时间戳倒退，已停止分析以保护轨迹时间。', video_time_unavailable: '缺少可靠的时间戳与帧率，无法生成轨迹。',
+    analysis_failed: '分析失败。查看本地 Worker 的运行状态。', invalid_artifacts: '产物校验失败，未发布不完整的结果。'
   }
-  return messages[code] || code || '分析失败'
+  return messages[code] || code || '分析失败。'
 }
-function problem(e) { return e?.response?.data?.error?.code ? errorText(e.response.data.error.code) : (e?.response ? `请求失败（${e.response.status}）` : '网络连接失败，请检查本地后端') }
-function publish() { emit('analysis',{runId:run.value?.run_id,summary:summary.value,tracks:tracks.value,heatmap:heatmap.value,layers:{...layers},roi:applied.value.roi || null,allowedGap:run.value?.config_snapshot.settings.allowed_gap_seconds || 0.5,fps:run.value?.summary?.fps || 30}) }
-watch(layers,publish,{deep:true})
+function problem(e) {
+  if (e?.response?.data?.error?.code) return errorText(e.response.data.error.code)
+  return e?.response ? `请求失败（HTTP ${e.response.status}）。刷新后重试。` : '无法连接本地后端。确认服务已启动后重新连接。'
+}
+
+function publish() {
+  emit('analysis', markRaw({
+    runId: run.value?.run_id, run: run.value, summary: summary.value, tracks: tracks.value, heatmap: heatmap.value,
+    overview: overview.value, layers: { ...layers }, roi: applied.value.roi || null, roiDraft: layers.roiEditing ? roiDraft() : null, window: { ...applied.value },
+    labels: selectedModel.value?.labels || {}, aspect: aspect.value,
+    allowedGap: run.value?.config_snapshot.settings.allowed_gap_seconds || 0.5, fps: run.value?.summary?.fps || 30,
+    duration: run.value?.summary?.frame_count && run.value?.summary?.fps ? run.value.summary.frame_count / run.value.summary.fps : null
+  }))
+}
+watch(layers, publish, { deep: true })
+watch(roiText, () => { if (layers.roiEditing) publish() })
+function roiDraft() { try { const v = JSON.parse(roiText.value); return Array.isArray(v) ? v.filter(p => Array.isArray(p) && p.length === 2) : [] } catch { return [] } }
+
 async function boot() {
-  const version=++generation
-  clearTimeout(pollTimer); bootAbort?.abort(); pollAbort?.abort(); statsAbort?.abort(); trackAbort?.abort()
-  bootAbort=new AbortController(); run.value=null; selectedId.value=''; tracks.value=[]; heatmap.value=null; summary.value=null; runs.value=[]; error.value=''; busy.value=true; publish()
+  const version = ++generation
+  clearTimeout(pollTimer)
+  for (const c of [bootAbort, pollAbort, statsAbort, trackAbort, overviewAbort]) c?.abort()
+  bootAbort = new AbortController()
+  run.value = null; selectedId.value = ''; tracks.value = []; heatmap.value = null; summary.value = null; overview.value = null; runs.value = []; error.value = ''; busy.value = true
+  publish()
   try {
-    const [m,r]=await Promise.all([listAnalysisModels(bootAbort.signal),listAnalysisRuns(props.taskId,bootAbort.signal)])
-    if(version!==generation || disposed) return
-    models.value=m.data.items; runs.value=r.data.items; modelId.value=models.value[0]?.id || ''; selectedId.value=runs.value[0]?.run_id || ''
-  } catch(e) { if(!cancelled(e) && version===generation) error.value=problem(e) }
-  finally { if(version===generation) busy.value=false }
+    const [m, r] = await Promise.all([listAnalysisModels(bootAbort.signal), listAnalysisRuns(props.taskId, bootAbort.signal)])
+    if (version !== generation || disposed) return
+    models.value = m.data.items; runs.value = r.data.items
+    modelId.value = models.value[0]?.id || ''
+    selectedId.value = (runs.value.find(r => r.status === 'completed') || runs.value[0])?.run_id || ''
+  } catch (e) {
+    if (!cancelled(e) && version === generation) error.value = problem(e)
+  } finally {
+    if (version === generation) busy.value = false
+  }
 }
-watch(()=>props.taskId,boot,{immediate:true})
-watch(selectedId,async id=>{
-  if(!id) return
-  const version=++generation
-  clearTimeout(pollTimer); pollAbort?.abort(); statsAbort?.abort(); trackAbort?.abort()
-  applied.value={start_ms:0}; filterStart.value=0; filterEnd.value=''; classId.value=''; trackId.value=''; roiPreset.value='all'; layers.roiEditing=false
-  run.value=runs.value.find(r=>r.run_id===id) || null; tracks.value=[]; heatmap.value=null; summary.value=null; trackWarning.value=''; publish()
-  if(!id || disposed) return
+watch(() => props.taskId, boot, { immediate: true })
+
+watch(selectedId, async id => {
+  if (!id) return
+  const version = ++generation
+  clearTimeout(pollTimer)
+  for (const c of [pollAbort, statsAbort, trackAbort, overviewAbort]) c?.abort()
+  applied.value = { start_ms: 0 }; filterStart.value = 0; filterEnd.value = ''; classId.value = ''; trackId.value = ''; roiPreset.value = 'all'; layers.roiEditing = false
+  run.value = runs.value.find(r => r.run_id === id) || null
+  tracks.value = []; heatmap.value = null; summary.value = null; overview.value = null; trackWarning.value = ''
+  publish()
+  if (disposed) return
   await poll(version)
 })
+
 async function poll(version) {
-  if(version!==generation || disposed) return
-  pollAbort=new AbortController()
+  if (version !== generation || disposed) return
+  pollAbort = new AbortController()
   try {
-    const response=await getAnalysisRun(selectedId.value,pollAbort.signal)
-    if(version!==generation || disposed) return
-    run.value=response.data; error.value=''
-    runs.value=runs.value.map(r=>r.run_id===run.value.run_id?run.value:r)
-    if(run.value.status==='completed') { await Promise.all([loadStats(),loadTracks()]); return }
-    if(run.value.status==='failed') return
-  } catch(e) { if(!cancelled(e) && version===generation) error.value=problem(e) }
-  if(version===generation && !disposed) pollTimer=setTimeout(()=>poll(version),1500)
+    const response = await getAnalysisRun(selectedId.value, pollAbort.signal)
+    if (version !== generation || disposed) return
+    run.value = response.data; error.value = ''
+    runs.value = runs.value.map(r => r.run_id === run.value.run_id ? run.value : r)
+    publish()
+    if (run.value.status === 'completed') { await Promise.all([loadStats(), loadTracks(), loadOverview()]); return }
+    if (run.value.status === 'failed') return
+  } catch (e) {
+    if (!cancelled(e) && version === generation) error.value = problem(e)
+  }
+  if (version === generation && !disposed) pollTimer = setTimeout(() => poll(version), 1500)
 }
+
 async function createRun() {
-  if(busy.value) return
-  busy.value=true; error.value=''; const task=props.taskId
+  if (busy.value) return
+  busy.value = true; error.value = ''
+  const task = props.taskId
   try {
-    const response=await createAnalysisRun(task,{kind:'fish',models:{fish:modelId.value},settings:{confidence_threshold:confidence.value,camera_motion:motion.value}})
-    if(task!==props.taskId || disposed) return
-    runs.value=[response.data,...runs.value]; selectedId.value=response.data.run_id
-  } catch(e) { error.value=problem(e) } finally { busy.value=false }
+    const response = await createAnalysisRun(task, { kind: 'fish', models: { fish: modelId.value }, settings: { confidence_threshold: confidence.value, camera_motion: motion.value } })
+    if (task !== props.taskId || disposed) return
+    runs.value = [response.data, ...runs.value]; selectedId.value = response.data.run_id; createOpen.value = false
+    emit('toast', { title: '分析已排队', desc: '旧的分析结果会保留，可在分析记录中切换。' })
+  } catch (e) {
+    error.value = problem(e)
+  } finally {
+    busy.value = false
+  }
 }
+
 async function retryRun() {
-  if(busy.value) return
-  busy.value=true
-  const id=selectedId.value
-  try { const response=await retryAnalysisRun(id); if(id!==selectedId.value || disposed) return; run.value=response.data; poll(generation) }
-  catch(e) { error.value=problem(e) } finally { busy.value=false }
-}
-function applyFilters() {
-  const params={start_ms:Number(filterStart.value)*1000}
-  if(filterEnd.value!=='') params.end_ms=Number(filterEnd.value)*1000
-  if(!Number.isFinite(params.start_ms) || params.start_ms<0 || ('end_ms' in params && (!Number.isFinite(params.end_ms) || params.end_ms<=params.start_ms))) { error.value='终点必须大于起点，时间必须为有限非负数'; return }
-  for(const [key,value] of [['class_id',classId.value],['track_id',trackId.value]]) if(value!=='') { if(!Number.isInteger(Number(value)) || Number(value)<0) {error.value='筛选 ID 必须为非负整数';return}; params[key]=Number(value) }
-  let roi=null
-  if(roiPreset.value==='left') roi=[[0,0],[0.5,0],[0.5,1],[0,1]]
-  if(roiPreset.value==='center') roi=[[0.25,0.25],[0.75,0.25],[0.75,0.75],[0.25,0.75]]
-  if(roiPreset.value==='custom') { try {roi=JSON.parse(roiText.value); if(!Array.isArray(roi)||roi.length<3||roi.length>64||roi.some(p=>!Array.isArray(p)||p.length!==2||p.some(v=>typeof v!=='number'||!Number.isFinite(v)||v<0||v>1))) throw new Error() } catch {error.value='ROI 需为 3–64 个归一化顶点';return} }
-  if(roi) params.roi=roi
-  layers.roiEditing=false; applied.value=params; error.value=''; loadStats();loadTracks()
-}
-function queryParams() { return {...applied.value,...(applied.value.roi?{roi:JSON.stringify(applied.value.roi)}:{})} }
-async function loadStats() {
-  if(run.value?.status!=='completed') return
-  statsAbort?.abort(); const controller=new AbortController(); statsAbort=controller; const id=selectedId.value
-  statsLoading.value=true; summary.value=null; heatmap.value=null; publish()
-  try {const [h,s]=await Promise.all([getAnalysisHeatmap(id,queryParams(),controller.signal),getAnalysisSummary(id,queryParams(),controller.signal)]); if(controller.signal.aborted||id!==selectedId.value||disposed)return; heatmap.value=h.data;summary.value=s.data;error.value='';publish()}
-  catch(e){if(!cancelled(e))error.value=problem(e)} finally{if(statsAbort===controller)statsLoading.value=false}
-}
-async function loadTracks() {
-  if(run.value?.status!=='completed') return
-  trackAbort?.abort(); const controller=new AbortController();trackAbort=controller; const id=selectedId.value
-  const start=Math.max(applied.value.start_ms, layers.fullTracks ? 0 : Math.floor(props.currentTime/4)*4000-layers.tailSeconds*1000)
-  const end=Math.min(applied.value.end_ms ?? Infinity,layers.fullTracks ? Infinity : Math.floor(props.currentTime/4)*4000+4500)
-  tracks.value=[];trackWarning.value='';trackLoading.value=true;publish()
-  if(end<=start){trackLoading.value=false;return}
-  const params={start_ms:start,limit:2000}
-  if(Number.isFinite(end)) params.end_ms=end
-  for(const key of ['class_id','track_id'])if(key in applied.value)params[key]=applied.value[key]
+  if (busy.value) return
+  busy.value = true
+  const id = selectedId.value
   try {
-    let cursor=null;const result=[]
-    do {const response=await getAnalysisTracks(id,{...params,...(cursor?{cursor}:{})},controller.signal); if(controller.signal.aborted||id!==selectedId.value||disposed)return; result.push(...response.data.items);cursor=response.data.next_cursor} while(cursor&&result.length<20000)
-    if(cursor)trackWarning.value='当前窗口超过 20000 条，请缩短尾迹或筛选类别。窗口导出已禁用。'
-    tracks.value=result;publish()
-  } catch(e){if(!cancelled(e)){trackWarning.value=problem(e);tracks.value=[];publish()}} finally{if(trackAbort===controller)trackLoading.value=false}
+    const response = await retryAnalysisRun(id)
+    if (id !== selectedId.value || disposed) return
+    run.value = response.data
+    poll(generation)
+  } catch (e) {
+    error.value = problem(e)
+  } finally {
+    busy.value = false
+  }
 }
-watch([()=>layers.fullTracks ? -1 : Math.floor(props.currentTime/4),()=>layers.tailSeconds,()=>layers.fullTracks],loadTracks)
-function startRoi(){roiPreset.value='custom';layers.roiEditing=true;message.value='在视频画面点选顶点，至少三个点后应用筛选。'}
-function clearRoi(){roiText.value='[]'}
-function addRoiPoint(point){if(!layers.roiEditing)return;let points=[];try{points=JSON.parse(roiText.value)}catch{};if(!Array.isArray(points))points=[];if(points.length<64){points.push(point);roiText.value=JSON.stringify(points)}}
-defineExpose({addRoiPoint,refresh:boot})
-function metricText(m){return m?.value==null?'N/A':Number.isInteger(m.value)?m.value:Number(m.value).toFixed(3)}
-function saveBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-async function download(resource,format){try{const response=await downloadAnalysis(selectedId.value,resource,{...queryParams(),export:format});saveBlob(response.data,`${resource==='summary'?'analysis_report':'heatmap'}.${format}`);message.value='已导出当前统计窗口与来源元数据'}catch{error.value='导出失败，请刷新后重试'}}
-function exportTracks(){saveBlob(new Blob([tracks.value.map(p=>JSON.stringify(p)).join('\n')+'\n'],{type:'application/x-ndjson'}),'playback-window-tracks.jsonl');message.value='已导出当前播放缓存窗口的真实观测，不包含全片轨迹。'}
-onBeforeUnmount(()=>{disposed=true;generation++;clearTimeout(pollTimer);for(const c of [bootAbort,pollAbort,statsAbort,trackAbort])c?.abort()})
+
+function draftParams() {
+  const params = { start_ms: Number(filterStart.value) * 1000 }
+  if (filterEnd.value !== '' && filterEnd.value != null) params.end_ms = Number(filterEnd.value) * 1000
+  if (!Number.isFinite(params.start_ms) || params.start_ms < 0 || ('end_ms' in params && (!Number.isFinite(params.end_ms) || params.end_ms <= params.start_ms))) return null
+  for (const [key, value] of [['class_id', classId.value], ['track_id', trackId.value]]) {
+    if (value === '' || value == null) continue
+    if (!Number.isInteger(Number(value)) || Number(value) < 0) return null
+    params[key] = Number(value)
+  }
+  let roi = null
+  if (roiPreset.value === 'left') roi = [[0, 0], [0.5, 0], [0.5, 1], [0, 1]]
+  if (roiPreset.value === 'center') roi = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
+  if (roiPreset.value === 'custom') {
+    try {
+      roi = JSON.parse(roiText.value)
+      if (!Array.isArray(roi) || roi.length < 3 || roi.length > 64 || roi.some(p => !Array.isArray(p) || p.length !== 2 || p.some(v => typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 1))) return null
+    } catch { return null }
+  }
+  if (roi) params.roi = roi
+  return params
+}
+
+function applyFilters() {
+  const params = draftParams()
+  if (!params) {
+    const end = filterEnd.value === '' ? null : Number(filterEnd.value)
+    if (end != null && end <= Number(filterStart.value)) error.value = '终点要大于起点。'
+    else if (roiPreset.value === 'custom') error.value = 'ROI 需要 3–64 个顶点，坐标在 0 到 1 之间。'
+    else error.value = '时间用非负数，ID 用非负整数。'
+    return
+  }
+  layers.roiEditing = false; applied.value = params; error.value = ''
+  loadStats(); loadTracks()
+}
+
+function queryParams() { return { ...applied.value, ...(applied.value.roi ? { roi: JSON.stringify(applied.value.roi) } : {}) } }
+
+async function loadStats() {
+  if (run.value?.status !== 'completed') return
+  statsAbort?.abort()
+  const controller = new AbortController(); statsAbort = controller
+  const id = selectedId.value
+  statsLoading.value = true; summary.value = null; heatmap.value = null; publish()
+  try {
+    const [h, s] = await Promise.all([getAnalysisHeatmap(id, queryParams(), controller.signal), getAnalysisSummary(id, queryParams(), controller.signal)])
+    if (controller.signal.aborted || id !== selectedId.value || disposed) return
+    heatmap.value = markRaw(h.data); summary.value = markRaw(s.data); error.value = ''
+    publish()
+  } catch (e) {
+    if (!cancelled(e)) error.value = problem(e)
+  } finally {
+    if (statsAbort === controller) statsLoading.value = false
+  }
+}
+
+async function fetchAll(id, params, signal) {
+  let cursor = null
+  const result = []
+  do {
+    const response = await getAnalysisTracks(id, { ...params, ...(cursor ? { cursor } : {}) }, signal)
+    if (signal.aborted || id !== selectedId.value || disposed) return null
+    result.push(...response.data.items)
+    cursor = response.data.next_cursor
+  } while (cursor && result.length < TRACK_BUDGET)
+  return { items: result, truncated: Boolean(cursor) }
+}
+
+async function loadTracks() {
+  if (run.value?.status !== 'completed') return
+  trackAbort?.abort()
+  const controller = new AbortController(); trackAbort = controller
+  const id = selectedId.value
+  const start = Math.max(applied.value.start_ms, layers.fullTracks ? 0 : Math.floor(props.currentTime / 4) * 4000 - layers.tailSeconds * 1000)
+  const end = Math.min(applied.value.end_ms ?? Infinity, layers.fullTracks ? Infinity : Math.floor(props.currentTime / 4) * 4000 + 4500)
+  trackWarning.value = ''; trackLoading.value = true
+  if (end <= start) { tracks.value = []; trackLoading.value = false; publish(); return }
+  const params = { start_ms: start, limit: 2000 }
+  if (Number.isFinite(end)) params.end_ms = end
+  for (const key of ['class_id', 'track_id']) if (key in applied.value) params[key] = applied.value[key]
+  try {
+    const result = await fetchAll(id, params, controller.signal)
+    if (!result) return
+    if (result.truncated) trackWarning.value = `这一段超过 ${TRACK_BUDGET.toLocaleString('zh-CN')} 条观测。缩短尾迹或按类别筛选；播放窗口导出已停用。`
+    tracks.value = markRaw(result.items); publish()
+  } catch (e) {
+    if (!cancelled(e)) { trackWarning.value = problem(e); tracks.value = []; publish() }
+  } finally {
+    if (trackAbort === controller) trackLoading.value = false
+  }
+}
+
+// Whole-run observations for the timeline and trajectory figures; display only, same budget as playback.
+async function loadOverview() {
+  if (run.value?.status !== 'completed') return
+  overviewAbort?.abort()
+  const controller = new AbortController(); overviewAbort = controller
+  const id = selectedId.value
+  try {
+    const result = await fetchAll(id, { start_ms: 0, limit: 2000 }, controller.signal)
+    if (!result) return
+    const gap = run.value.config_snapshot.settings.allowed_gap_seconds || 0.5
+    overview.value = markRaw({ spans: trackSpans(result.items, gap), frames: observationsPerFrame(result.items), truncated: result.truncated, count: result.items.length })
+    publish()
+  } catch (e) {
+    if (!cancelled(e)) overview.value = null
+  }
+}
+
+watch([() => layers.fullTracks ? -1 : Math.floor(props.currentTime / 4), () => layers.tailSeconds, () => layers.fullTracks], loadTracks)
+
+function startRoi() { roiPreset.value = 'custom'; layers.roiEditing = !layers.roiEditing; if (layers.roiEditing) message.value = '' }
+function clearRoi() { roiText.value = '[]' }
+function addRoiPoint(point) {
+  if (!layers.roiEditing) return
+  let points = []
+  try { points = JSON.parse(roiText.value) } catch { /* reset malformed draft */ }
+  if (!Array.isArray(points)) points = []
+  if (points.length < 64) { points.push(point); roiText.value = JSON.stringify(points) }
+}
+function setLayer(key, value) { if (key in layers) layers[key] = value }
+defineExpose({ addRoiPoint, refresh: boot, setLayer })
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement('a')
+  a.href = url; a.download = name; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+async function download(resource, format) {
+  try {
+    const response = await downloadAnalysis(selectedId.value, resource, { ...queryParams(), export: format })
+    saveBlob(response.data, `${resource === 'summary' ? 'analysis_report' : 'heatmap'}.${format}`)
+    message.value = '已导出。文件包含当前窗口、筛选与来源元数据。'
+  } catch {
+    error.value = '导出失败。刷新后重试。'
+  }
+}
+function exportTracks() {
+  saveBlob(new Blob([tracks.value.map(p => JSON.stringify(p)).join('\n') + '\n'], { type: 'application/x-ndjson' }), 'playback-window-tracks.jsonl')
+  message.value = '已导出当前播放缓存内的真实观测，不含全片轨迹。'
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); emit('toast', { title: '已复制', desc: text.slice(0, 24) + (text.length > 24 ? '…' : '') }) }
+  catch { emit('toast', { title: '无法访问剪贴板', desc: '手动选中文本复制。', type: 'alert' }) }
+}
+
+onBeforeUnmount(() => {
+  disposed = true; generation++
+  clearTimeout(pollTimer)
+  for (const c of [bootAbort, pollAbort, statsAbort, trackAbort, overviewAbort]) c?.abort()
+})
 </script>
 
 <style scoped>
-.analysis-panel{height:100%;overflow:auto;background:var(--theme-surface);padding:16px;color:var(--theme-on-surface);font-size:12px}header,.run-status{display:flex;justify-content:space-between;align-items:center;gap:8px}h2{font-size:16px;font-weight:650}h3{font-size:13px;font-weight:600;margin-bottom:12px}.section{padding:18px 0;border-bottom:1px solid var(--theme-outline-variant)}label{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}.pair>*{min-width:0}input:not([type=checkbox]),select,textarea{width:100%;padding:8px;border:1px solid var(--theme-on-surface-variant);border-radius:6px;background:var(--theme-bg);color:var(--theme-on-surface);font:inherit}input[type=range]{padding:0}button{padding:7px 11px;border:1px solid var(--theme-outline);border-radius:6px;background:var(--theme-surface-container);cursor:pointer;white-space:nowrap}button:hover{border-color:var(--theme-primary)}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:var(--theme-primary);color:var(--theme-on-primary);width:100%;border-color:transparent}.muted{color:var(--theme-on-surface-variant);line-height:1.6;margin-top:8px}.notice{padding:10px;border-left:2px solid var(--theme-primary);background:var(--theme-primary-container);color:var(--theme-on-primary-container);line-height:1.6;margin-top:10px}.error{color:var(--theme-error);line-height:1.6;margin:8px 0}.checks{display:flex;gap:12px;flex-wrap:wrap}.checks label{flex-direction:row;align-items:center;gap:5px}.run-status{padding-top:12px}dl{display:grid;grid-template-columns:1fr auto;gap:10px}dd{font-family:var(--font-mono);font-variant-numeric:tabular-nums}.exports{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.track-events{display:flex;gap:6px;flex-wrap:wrap}.track-events button{font-size:11px}.break{overflow-wrap:anywhere}details{margin-top:14px}summary{cursor:pointer}:focus-visible{outline:2px solid var(--theme-primary);outline-offset:2px}
+.inspector { height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--surface); display: flex; flex-direction: column; }
+.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; }
+h2 { font-size: var(--text-title); font-weight: 600; }
+h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
+.min-w-0 { min-width: 0; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.banner { display: flex; gap: 8px; align-items: flex-start; margin: 0 16px 10px; padding: 8px 10px; border-radius: var(--radius); font-size: var(--text-small); line-height: 1.5; }
+.banner .tabler-icon { --icon-size: 14px; margin-top: 2px; }
+.banner.warn { color: var(--warn); background: var(--warn-soft); }
+.banner.danger { color: var(--danger); background: var(--danger-soft); }
+.link { margin-inline-start: auto; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; white-space: nowrap; }
+.run { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; }
+.run-row { display: flex; align-items: flex-end; gap: 8px; }
+.grow { flex: 1; }
+.pending { display: flex; gap: 6px; align-items: flex-start; }
+.pending .tabler-icon { --icon-size: 14px; margin-top: 2px; color: var(--info); }
+.status { display: flex; align-items: center; justify-content: space-between; }
+.state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ink-2); }
+.state[data-state=completed] .dot { color: var(--ok); }
+.state[data-state=running] .dot, .state[data-state=queued] .dot { color: var(--info); }
+.state[data-state=failed] { color: var(--danger); }
+.progress { height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
+.progress > span { display: block; height: 100%; background: var(--info); transition: width 300ms var(--ease); }
+.failed { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--danger); font-size: var(--text-small); line-height: 1.5; }
+.meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
+.meta div { min-width: 0; }
+.meta dt, .provenance dt { font-size: var(--text-caption); color: var(--ink-3); }
+.meta dd { font-size: var(--text-small); }
+.create { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--line); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tabs { flex: none; }
+.tabs :deep(.ui-tabs-list) { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+.is-on { color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 40%, transparent); }
+.pad { padding-top: 12px; }
+.figures { gap: 16px; }
+.pane { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px 24px; }
+.layer { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.layer .switch { margin-top: 2px; }
+.layer label { display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
+.layer strong { font-weight: 500; }
+.layer-extra { margin: -2px 0 6px 38px; }
+.heat-extra { display: flex; flex-direction: column; gap: 4px; margin-inline-end: 0; }
+.ramp { height: 8px; border-radius: 2px; background: linear-gradient(90deg, #000004, #160b39, #420a68, #6a176e, #932667, #bc3754, #dd513a, #f37819, #fca50a, #f6d746, #fcffa4); }
+.ramp-scale { display: flex; justify-content: space-between; font-size: var(--text-caption); color: var(--ink-3); margin-bottom: 6px; }
+.warn-text { color: var(--warn); }
+.block { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
+.block-head { display: flex; align-items: baseline; justify-content: space-between; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--radius-sm); font: inherit; font-size: var(--text-caption); color: var(--ink); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; transition: background-color 120ms var(--ease); }
+.chip:hover { background: var(--surface-3); }
+.swatch { width: 8px; height: 8px; border-radius: 2px; }
+.faint { color: var(--ink-3); }
+.filters { display: flex; flex-direction: column; gap: 12px; }
+.with-action { display: flex; gap: 4px; align-items: center; }
+.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.applied { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2); font-size: var(--text-small); }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 12px; border-radius: var(--radius-lg); overflow: hidden; background: var(--line); box-shadow: 0 0 0 1px var(--line); }
+.kpi { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--surface); min-width: 0; }
+.kpi strong { font-size: var(--text-figure); font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
+.kpi .note { font-size: var(--text-caption); }
+.na-list { display: flex; flex-direction: column; gap: 6px; }
+.na-list div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: baseline; font-size: var(--text-small); }
+.na-list dt { color: var(--ink-2); }
+.na-list dd { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 72px) 1fr auto; gap: 10px; align-items: center; font-size: var(--text-small); }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--ink-3); }
+.exports { display: flex; flex-wrap: wrap; gap: 6px; }
+.provenance { display: flex; flex-direction: column; gap: 10px; }
+.provenance dd { display: flex; align-items: flex-start; gap: 4px; font-size: var(--text-small); overflow-wrap: anywhere; }
+.hash { word-break: break-all; line-height: 1.5; }
+.limits { display: flex; flex-direction: column; gap: 6px; padding-inline-start: 16px; list-style: disc; color: var(--ink-2); font-size: var(--text-small); line-height: 1.55; }
+.limits li::marker { color: var(--ink-3); }
 </style>
