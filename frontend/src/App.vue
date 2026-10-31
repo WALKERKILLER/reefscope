@@ -1,285 +1,163 @@
 <template>
-  <div class="h-screen w-screen flex flex-col overflow-hidden text-m3-on-surface bg-m3-bg font-sans text-[13px] transition-colors duration-200">
-    <!-- Title Bar -->
-    <header class="h-14 border-b border-m3-outline-variant/30 flex items-center justify-between px-6 shrink-0 select-none z-30 bg-m3-bg transition-colors duration-200">
-      <div class="flex items-center gap-4 h-full">
-        <div class="p-2 rounded-lg bg-m3-primary/10 text-m3-primary">
-          <i class="w-5 h-5">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-              <path d="M2 6c.6.5 1.2 1 2.5 1C7.7 7 7.7 5 11 5c2 0 2.5 1 5 1s3-1 5-1"/>
-              <path d="M2 12c.6.5 1.2 1 2.5 1 3.2 0 3.2-2 6.5-2 2 0 2.5 1 5 1s3-1 5-1"/>
-              <path d="M2 18c.6.5 1.2 1 2.5 1 3.2 0 3.2-2 6.5-2 2 0 2.5 1 5 1s3-1 5-1"/>
-            </svg>
-          </i>
+  <TooltipProvider :delay-duration="350">
+    <div class="app" :data-view="activeView" :class="{ immersive: immersive && activeView === 'monitor' }">
+      <header class="topbar">
+        <div class="brand">
+          <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.25" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M5 13.5c1.75 0 1.75-1.5 3.5-1.5s1.75 1.5 3.5 1.5 1.75-1.5 3.5-1.5 1.75 1.5 3.5 1.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          <span class="brand-name">ReefScope</span>
+          <span class="brand-sub">水下生态视频分析</span>
         </div>
-        <div class="flex space-x-6 h-full items-center font-medium">
-          <div
-            @click="activeView = 'console'"
-            class="cursor-pointer transition-colors px-2 py-1 rounded-md"
-            :class="activeView === 'console' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >控制台</div>
-          <div
-            @click="activeView = 'monitor'"
-            class="cursor-pointer transition-colors px-2 py-1 rounded-md"
-            :class="activeView === 'monitor' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >监控台</div>
-          <div
-            @click="activeView = 'records'"
-            class="cursor-pointer transition-colors px-2 py-1 rounded-md"
-            :class="activeView === 'records' ? 'text-m3-primary font-semibold' : 'text-m3-on-surface-variant hover:text-m3-on-surface'"
-          >记录</div>
+        <nav class="nav" aria-label="主导航">
+          <button v-for="item in views" :key="item.value" class="nav-item" :aria-current="activeView === item.value ? 'page' : undefined" @click="activeView = item.value">
+            <component :is="item.icon" />{{ item.label }}
+          </button>
+        </nav>
+        <div class="top-actions">
+          <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
+            <button class="btn btn-ghost btn-icon" aria-label="全屏展示" @click="toggleFullscreen"><IconMaximize /></button>
+          </UiTooltip>
+          <UiTooltip :text="isDarkTheme ? '切换到浅色' : '切换到深色'">
+            <button class="btn btn-ghost btn-icon" :aria-label="isDarkTheme ? '切换到浅色' : '切换到深色'" @click="isDarkTheme = !isDarkTheme">
+              <IconSun v-if="isDarkTheme" /><IconMoon v-else />
+            </button>
+          </UiTooltip>
         </div>
-      </div>
-      <div class="absolute left-1/2 -translate-x-1/2 flex items-center">
-        <span class="text-[12px] text-m3-on-surface-variant font-medium">水下生态监测平台</span>
-      </div>
-      <div class="flex items-center gap-4">
-        <!-- Theme Toggle -->
-        <button
-          @click="toggleTheme"
-          class="w-8 h-8 rounded-lg flex items-center justify-center cursor-pointer text-m3-on-surface-variant hover:text-m3-primary hover:bg-m3-primary/10 transition-colors"
-        >
-          <i v-if="isDarkTheme" class="w-4 h-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 block">
-              <circle cx="12" cy="12" r="4"/>
-              <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-            </svg>
-          </i>
-          <i v-else class="w-4 h-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 block">
-              <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-            </svg>
-          </i>
-        </button>
-        <div class="w-8 h-8 rounded-lg bg-m3-primary/20 flex items-center justify-center cursor-pointer text-m3-primary">
-          <div class="w-2.5 h-2.5 rounded-full bg-m3-success"></div>
-        </div>
-      </div>
-    </header>
+      </header>
 
-    <!-- Main Body -->
-    <main class="flex flex-1 overflow-hidden relative z-10">
-      <!-- Console View -->
-      <template v-if="activeView === 'console'">
-        <!-- Activity Bar -->
-        <div class="w-16 border-r border-m3-outline-variant/30 bg-m3-bg flex flex-col items-center py-4 gap-4 shrink-0 z-20">
-          <div
-            @click="togglePanel('files')"
-            class="p-3 rounded-lg cursor-pointer transition-colors"
-            :class="activePanel === 'files' ? 'text-m3-primary bg-m3-primary/15' : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container'"
-          >
-            <i class="w-5 h-5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-                <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-              </svg>
-            </i>
-          </div>
-          <div
-            @click="togglePanel('activity')"
-            class="p-3 rounded-lg cursor-pointer transition-colors"
-            :class="activePanel === 'activity' ? 'text-m3-primary bg-m3-primary/15' : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container'"
-          >
-            <i class="w-5 h-5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-              </svg>
-            </i>
-          </div>
-          <div
-            @click="togglePanel('box')"
-            class="p-3 rounded-lg cursor-pointer transition-colors"
-            :class="activePanel === 'box' ? 'text-m3-primary bg-m3-primary/15' : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container'"
-          >
-            <i class="w-5 h-5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-              </svg>
-            </i>
-          </div>
-          <div
-            @click="togglePanel('terminal')"
-            class="p-3 rounded-lg cursor-pointer transition-colors"
-            :class="activePanel === 'terminal' ? 'text-m3-primary bg-m3-primary/15' : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container'"
-          >
-            <i class="w-5 h-5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
-              </svg>
-            </i>
-          </div>
-          <div
-            @click="togglePanel('settings')"
-            class="mt-auto p-3 rounded-lg cursor-pointer transition-colors"
-            :class="activePanel === 'settings' ? 'text-m3-primary bg-m3-primary/15' : 'text-m3-on-surface-variant hover:text-m3-on-surface hover:bg-m3-surface-container'"
-          >
-            <i class="w-5 h-5">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 block">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </i>
-          </div>
-        </div>
-
-        <!-- Sidebar + Workspace + RightPanel flex layout -->
-        <div ref="consoleLayoutRef" class="flex-1 flex overflow-hidden">
-          <!-- Sidebar -->
-          <div
-            v-if="activePanel !== null"
-            class="flex-shrink-0"
-            :style="{ width: `${leftPanelWidth}px`, minWidth: `${LEFT_PANEL_MIN}px` }"
-          >
-            <Sidebar
+      <main class="main">
+        <div v-show="activeView !== 'records'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor' }" :style="layoutStyle">
+          <div v-show="activeView === 'console'" class="area-library">
+            <LibraryPanel
               :history="history"
-              :active-panel="activePanel"
-              :settings="pipelineSettings"
+              :current-id="currentTaskId"
               :config-file="configFileEntry"
+              :config-active="workspaceMode === 'config'"
               :selection-mode="selectionMode"
               :selected-ids="selectedFileIds"
               @file-select="handleFileSelect"
-              @update-settings="updatePipelineSettings"
               @file-action="handleSingleFileAction"
               @file-batch-action="handleBatchFileAction"
               @toggle-select="toggleFileSelection"
               @selection-mode-change="setSelectionMode"
+              @file-drop="handleFileDrop"
             />
           </div>
+          <div v-show="activeView === 'console'" class="handle handle-left" role="separator" aria-orientation="vertical" aria-label="调整视频库宽度" @pointerdown="startResize('left', $event)" />
 
-          <!-- Separator -->
-          <div
-            v-if="activePanel !== null"
-            class="relative w-1.5 flex items-center justify-center cursor-col-resize group z-30 transition-colors bg-transparent shrink-0"
-            @mousedown="startResize('left', $event)"
-          >
-            <div class="absolute left-1/2 w-px h-full bg-m3-outline-variant/30 group-hover:bg-m3-primary transition-colors"></div>
-            <div class="absolute left-1/2 -translate-x-[1px] w-[3px] h-6 bg-m3-outline-variant/70 rounded-full group-hover:bg-m3-primary transition-colors"></div>
+          <div v-if="activeView === 'monitor'" class="area-head">
+            <MonitorView :analysis="analysisState" :file-name="fileName" :current-time="currentTime" />
+          </div>
+          <div v-if="activeView === 'monitor'" class="area-left">
+            <WallInsights :analysis="analysisState" :current-time="currentTime" @seek="handleTimelineClick" />
           </div>
 
-          <!-- VideoWorkspace -->
-          <div class="flex-1 min-w-0 bg-transparent p-4 overflow-hidden">
+          <div class="area-center">
             <ConfigEditor
               v-if="workspaceMode === 'config'"
+              class="grow"
               :file-name="configFileEntry.name"
               :content="configContent"
+              :saved-content="configSavedContent"
+              :settings="configSettings"
               :save-message="configSaveMessage"
+              :save-content="saveConfigContent"
+              :save-settings="saveConfigSettings"
               @update:content="configContent = $event"
-              @save="handleSaveConfig"
               @close="handleCloseWorkspace"
             />
             <VideoWorkspace
               v-else
+              class="grow"
               :file-name="fileName"
               :status="status"
               :progress="progress"
               :logs="logs"
               :video-url="videoUrl"
-              :result-video-url="resultVideoUrl"
-              :playback-mode="playbackMode"
+              :result-video-url="analysisState ? null : resultVideoUrl"
+              :playback-mode="analysisState ? 'overlay' : playbackMode"
               :boxes="boxes"
+              :analysis="analysisState"
               :current-time="currentTime"
+              :wall="activeView === 'monitor'"
+              @layer="(key, value) => analysisPanelRef?.setLayer(key, value)"
+              @roi-point="point => analysisPanelRef?.addRoiPoint(point)"
               @file-drop="handleFileDrop"
               @close="handleCloseWorkspace"
               @time-update="(t) => currentTime = t"
               @update:playback-mode="playbackMode = $event"
-              @settings-click="activePanel = 'settings'"
             />
+            <div v-if="analysisState?.overview && workspaceMode === 'video'" class="timeline-card">
+              <TrackTimeline :spans="analysisState.overview.spans" :frames="analysisState.overview.frames" :duration="analysisState.duration" :current-time="currentTime" :window="analysisState.window" @seek="handleTimelineClick" />
+            </div>
           </div>
 
-          <!-- Right Panel Separator -->
-          <div
-            class="relative w-1.5 flex items-center justify-center cursor-col-resize group z-30 transition-colors bg-transparent shrink-0"
-            @mousedown="startResize('right', $event)"
-          >
-            <div class="absolute left-1/2 w-px h-full bg-m3-outline-variant/30 group-hover:bg-m3-primary transition-colors"></div>
-            <div class="absolute left-1/2 -translate-x-[1px] w-[3px] h-6 bg-m3-outline-variant/70 rounded-full group-hover:bg-m3-primary transition-colors"></div>
+          <div v-show="activeView === 'console'" class="handle handle-right" role="separator" aria-orientation="vertical" aria-label="调整分析面板宽度" @pointerdown="startResize('right', $event)" />
+          <div v-show="activeView === 'console'" class="area-inspector">
+            <FishAnalysisPanel v-if="currentTaskId && workspaceMode === 'video'" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
+            <aside v-else class="inspector-empty" aria-label="分析">
+              <h2>鱼类分析</h2>
+              <ol class="steps">
+                <li><span class="num">1</span><div><strong>打开视频</strong><p class="note">从视频库选择，或上传 MP4。</p></div></li>
+                <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">选择注册模型，由独立 Worker 逐帧追踪。</p></div></li>
+                <li><span class="num">3</span><div><strong>查看证据</strong><p class="note">叠加框、尾迹与热图，按时间窗和 ROI 统计并导出。</p></div></li>
+              </ol>
+            </aside>
           </div>
 
-          <!-- RightPanel -->
-          <div
-            class="flex-shrink-0"
-            :style="{ width: `${rightPanelWidth}px`, minWidth: `${RIGHT_PANEL_MIN}px` }"
-          >
-            <RightPanel
-              :boxes="boxes"
-              :current-time="currentTime"
-              @timeline-click="handleTimelineClick"
-            />
+          <div v-if="activeView === 'monitor'" class="area-side">
+            <WallEvidence :analysis="analysisState" @open-workspace="activeView = 'console'" />
           </div>
         </div>
-      </template>
 
-      <!-- Monitor View -->
-      <MonitorView v-if="activeView === 'monitor'" />
+        <RecordsView v-if="activeView === 'records'" :history="history" @play-record="handlePlayRecord" />
+      </main>
 
-      <!-- Records View -->
-      <RecordsView
-        v-if="activeView === 'records'"
-        :history="history"
-        @play-record="handlePlayRecord"
-      />
-    </main>
-
-    <!-- Status Bar -->
-    <footer class="h-8 border-t border-m3-outline-variant/30 bg-m3-bg px-4 flex items-center justify-between text-[11px] shrink-0 z-20 select-none transition-colors duration-200">
-      <div class="flex h-full items-center gap-6 font-medium">
-        <div class="flex items-center cursor-pointer text-m3-on-surface hover:text-m3-primary transition-colors">
-          <span class="flex items-center gap-2">
-            <div class="w-1.5 h-1.5 rounded-full animate-pulse" :class="status === 'processing' ? 'bg-m3-warning' : 'bg-m3-success'"></div>
-            {{ status === 'processing' ? '处理中...' : '系统在线' }}
-          </span>
-        </div>
-        <div class="flex items-center cursor-pointer text-m3-on-surface-variant hover:text-m3-on-surface transition-colors">
-          节点: AP-EAST-01, HK-04
-        </div>
-      </div>
-      <div class="flex h-full items-center gap-6 text-m3-on-surface-variant font-medium">
-        <div class="flex items-center">延迟: 42ms</div>
-        <div class="flex items-center">{{ status === 'playing' ? '流媒体: 4K 60FPS' : '流媒体: 就绪' }}</div>
-      </div>
-    </footer>
-
-    <!-- Toast Container -->
-    <div class="fixed bottom-20 right-8 flex flex-col gap-4 z-50 pointer-events-none">
-      <div
-        v-for="toast in toasts"
-        :key="toast.id"
-        class="toast-enter w-[360px] m3-elevation-3 rounded-3xl flex items-start p-5 gap-4 pointer-events-auto"
-        :class="toastBg(toast.type)"
-      >
-        <div class="mt-1">
-          <div class="w-3.5 h-3.5 rounded-full" :class="toastIconColor(toast.type)"></div>
-        </div>
-        <div class="flex-1 flex flex-col">
-          <span class="text-[15px] font-bold text-m3-on-surface mb-1 tracking-wide">{{ toast.title }}</span>
-          <span v-if="toast.desc" class="text-[14px] text-m3-on-surface-variant leading-relaxed">{{ toast.desc }}</span>
-        </div>
-        <button
-          @click="dismissToast(toast.id)"
-          class="text-m3-on-surface-variant hover:text-m3-on-surface transition-colors p-2 rounded-full hover:bg-m3-outline-variant/20 m1-state-layer"
-        >&#10005;</button>
-      </div>
+      <footer class="statusbar">
+        <span class="health" :data-state="health"><span class="dot" />{{ healthText }}</span>
+        <span v-if="fileName" class="context truncate"><span>{{ fileName }}</span><template v-if="analysisState?.runId"><span class="sep" />分析 <span class="mono">{{ shortId(analysisState.runId) }}</span></template></span>
+        <span class="spacer" />
+        <span class="faint">画面坐标分析 · 精度以独立评估为准</span>
+      </footer>
     </div>
-  </div>
+    <UiToaster />
+    <UiDialogHost />
+  </TooltipProvider>
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
-import { uploadVideo, startProcess, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl } from './api'
-import Sidebar from './components/Sidebar.vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
+import { TooltipProvider } from 'reka-ui'
+import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails } from '@tabler/icons-vue'
+import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun, getHealth } from './api'
+import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
-import ConfigEditor from './components/ConfigEditor.vue'
-import RightPanel from './components/RightPanel.vue'
-import MonitorView from './components/MonitorView.vue'
+import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
+import TrackTimeline from './components/TrackTimeline.vue'
 import RecordsView from './components/RecordsView.vue'
+import UiTooltip from './components/ui/UiTooltip.vue'
+import UiToaster from './components/ui/UiToaster.vue'
+import UiDialogHost from './components/ui/UiDialogHost.vue'
+import { isDark as isDarkTheme } from './lib/theme'
+import { toast } from './lib/toast'
+import { confirmDialog, promptDialog } from './lib/dialogs'
+import { seekTo } from './lib/playback'
+import { shortId } from './lib/format'
+const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
+// The monitoring wall loads with its first visit; the workspace never downloads it.
+const MonitorView = defineAsyncComponent(() => import('./components/MonitorView.vue'))
+const WallEvidence = defineAsyncComponent(() => import('./components/WallEvidence.vue'))
+const WallInsights = defineAsyncComponent(() => import('./components/wall/WallInsights.vue'))
 
-const LEFT_PANEL_MIN = 200
-const RIGHT_PANEL_MIN = 200
-const WORKSPACE_MIN = 320
-const RESIZE_GAP = 12
+const views = [
+  { value: 'console', label: '工作台', icon: IconLayoutColumns },
+  { value: 'monitor', label: '监测大屏', icon: IconDeviceDesktopAnalytics },
+  { value: 'records', label: '记录', icon: IconListDetails }
+]
+const LEFT_MIN = 220, LEFT_MAX = 400, RIGHT_MIN = 300, RIGHT_MAX = 520, CENTER_MIN = 420
 
 // --- State ---
+const analysisState = shallowRef(null)
+const analysisPanelRef = ref(null)
 const history = ref([])
 const status = ref('idle') // 'idle' | 'processing' | 'playing'
 const progress = ref(0)
@@ -287,200 +165,101 @@ const logs = ref([])
 const videoUrl = ref(null)
 const resultVideoUrl = ref(null)
 const playbackMode = ref('result')
-const boxes = ref([])
+const boxes = shallowRef([])
 const currentTime = ref(0)
 const fileName = ref('')
-const activePanel = ref('files')
 const activeView = ref('console')
-const isDarkTheme = ref(true)
-const toasts = ref([])
 const currentTaskId = ref(null)
-const leftPanelWidth = ref(280)
-const rightPanelWidth = ref(300)
-const consoleLayoutRef = ref(null)
+const leftWidth = ref(264)
+const rightWidth = ref(352)
+const layoutRef = ref(null)
 const workspaceMode = ref('video')
 const configContent = ref('')
+const configSavedContent = ref('')
+const configSettings = shallowRef(null)
 const configSaveMessage = ref('')
-const configFileEntry = ref({
-  id: 'config:pipeline_settings.toml',
-  type: 'config',
-  name: 'pipeline_settings.toml',
-  path: 'config/pipeline_settings.toml'
-})
-const pipelineSettings = ref({
-  modelPath: import.meta.env.VITE_DEFAULT_MODEL_PATH || '',
-  targetLabels: import.meta.env.VITE_DEFAULT_TARGET_LABELS || 'fish',
-  confidenceThreshold: Number(import.meta.env.VITE_DEFAULT_CONFIDENCE_THRESHOLD || 0.25),
-  iouThreshold: Number(import.meta.env.VITE_DEFAULT_IOU_THRESHOLD || 0.45),
-  frameStride: Number(import.meta.env.VITE_DEFAULT_FRAME_STRIDE || 5),
-  batchSize: Number(import.meta.env.VITE_DEFAULT_BATCH_SIZE || 8),
-  useHalf: String(import.meta.env.VITE_DEFAULT_USE_HALF || 'true').toLowerCase() !== 'false'
-})
+const configFileEntry = ref({ id: 'config:pipeline_settings.toml', type: 'config', name: 'pipeline_settings.toml', path: 'config/pipeline_settings.toml' })
 const selectionMode = ref(false)
 const selectedFileIds = ref([])
+const health = ref('checking')
 
-let pollTimer = null
-let stopResizeListener = null
+const layoutStyle = computed(() => ({ '--left': `${leftWidth.value}px`, '--right': `${rightWidth.value}px` }))
+const healthText = computed(() => ({ online: '后端已连接', offline: '无法连接后端 · 每 15 秒重试', checking: '正在连接后端…' })[health.value])
+
+let workspaceGeneration = 0
+let uploadAbort = null
+let taskAbort = null
+let healthTimer = null
 let configSaveTimer = null
-
-// --- Theme ---
-watch(isDarkTheme, (val) => {
-  if (val) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-}, { immediate: true })
-
-function toggleTheme() {
-  isDarkTheme.value = !isDarkTheme.value
+let stopResizeListener = null
+function invalidateWorkspaceRequests() {
+  workspaceGeneration += 1
+  uploadAbort?.abort()
+  taskAbort?.abort()
 }
 
-// --- Panel ---
-function togglePanel(panel) {
-  activePanel.value = activePanel.value === panel ? null : panel
-}
-
-function clamp(value, min, max) {
-  return Math.min(Math.max(value, min), max)
-}
-
-function stopResize() {
-  if (stopResizeListener) {
-    stopResizeListener()
-    stopResizeListener = null
-  }
-  document.body.style.userSelect = ''
-  document.body.style.cursor = ''
-}
-
+// --- Layout ---
 function startResize(side, event) {
-  if (!consoleLayoutRef.value) return
-
-  const container = consoleLayoutRef.value
+  const container = layoutRef.value
+  if (!container) return
   const rect = container.getBoundingClientRect()
-
-  const handleMouseMove = (moveEvent) => {
-    const totalWidth = rect.width
-    if (!totalWidth) return
-
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+  const move = (e) => {
     if (side === 'left') {
-      const maxLeft = totalWidth - rightPanelWidth.value - WORKSPACE_MIN - RESIZE_GAP
-      leftPanelWidth.value = clamp(
-        moveEvent.clientX - rect.left,
-        LEFT_PANEL_MIN,
-        Math.max(LEFT_PANEL_MIN, maxLeft)
-      )
-      return
+      leftWidth.value = Math.round(Math.min(LEFT_MAX, Math.max(LEFT_MIN, Math.min(e.clientX - rect.left, rect.width - rightWidth.value - CENTER_MIN))))
+    } else {
+      rightWidth.value = Math.round(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, Math.min(rect.right - e.clientX, rect.width - leftWidth.value - CENTER_MIN))))
     }
-
-    const maxRight = totalWidth - leftPanelWidth.value - WORKSPACE_MIN - RESIZE_GAP
-    rightPanelWidth.value = clamp(
-      rect.right - moveEvent.clientX,
-      RIGHT_PANEL_MIN,
-      Math.max(RIGHT_PANEL_MIN, maxRight)
-    )
   }
-
-  const handleMouseUp = () => {
-    stopResize()
-    window.removeEventListener('mousemove', handleMouseMove)
-    window.removeEventListener('mouseup', handleMouseUp)
-  }
-
+  const up = () => { stopResize() }
   stopResize()
-  document.body.style.userSelect = 'none'
   document.body.style.cursor = 'col-resize'
-  window.addEventListener('mousemove', handleMouseMove)
-  window.addEventListener('mouseup', handleMouseUp)
-  stopResizeListener = () => {
-    window.removeEventListener('mousemove', handleMouseMove)
-    window.removeEventListener('mouseup', handleMouseUp)
-  }
+  document.body.style.userSelect = 'none'
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up)
+  stopResizeListener = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up) }
+}
+function stopResize() {
+  stopResizeListener?.()
+  stopResizeListener = null
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+// Fullscreen on the wall drops app chrome; the wall header carries the clock and run context.
+const immersive = ref(false)
+// Only whole-page fullscreen counts; the player's own fullscreen leaves the layout alone.
+const syncFullscreen = () => { immersive.value = document.fullscreenElement === document.documentElement }
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen()
+  else document.documentElement.requestFullscreen?.()
+}
+function onKeydown(event) {
+  if (activeView.value !== 'monitor' || event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return
+  if (event.target.closest?.('input, textarea, select, [contenteditable], .art-video-player')) return
+  toggleFullscreen()
+}
+
+// --- Health ---
+async function checkHealth() {
+  try { await getHealth(); health.value = 'online' } catch { health.value = 'offline' }
+  healthTimer = setTimeout(checkHealth, 15000)
 }
 
 // --- Toast ---
 function showToast(title, desc, type = 'info') {
-  const id = Date.now().toString()
-  toasts.value = [...toasts.value, { id, title, desc, type }]
-  setTimeout(() => {
-    dismissToast(id)
-  }, 4000)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter(t => t.id !== id)
-}
-
-function toastBg(type) {
-  return 'bg-m3-surface-container-highest'
-}
-
-function toastIconColor(type) {
-  if (type === 'warn') return 'bg-m3-warning'
-  if (type === 'alert') return 'bg-m3-error'
-  if (type === 'success') return 'bg-m3-success'
-  return 'bg-m3-primary'
-}
-
-function updatePipelineSettings(patch) {
-  pipelineSettings.value = {
-    ...pipelineSettings.value,
-    ...patch
-  }
-  syncConfigTextFromSettings()
-  persistPipelineSettings()
-}
-
-function syncConfigTextFromSettings() {
-  const targetLabels = String(pipelineSettings.value.targetLabels || '')
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-
-  configContent.value = [
-    '[pipeline]',
-    `model_path = "${String(pipelineSettings.value.modelPath || '').replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`,
-    `target_labels = [${(targetLabels.length > 0 ? targetLabels : ['fish']).map(item => `"${item.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`).join(', ')}]`,
-    `confidence_threshold = ${Number(pipelineSettings.value.confidenceThreshold || 0.25).toFixed(2)}`,
-    `iou_threshold = ${Number(pipelineSettings.value.iouThreshold || 0.45).toFixed(2)}`,
-    `frame_stride = ${Number(pipelineSettings.value.frameStride || 5)}`,
-    `batch_size = ${Number(pipelineSettings.value.batchSize || 8)}`,
-    `use_half = ${Boolean(pipelineSettings.value.useHalf) ? 'true' : 'false'}`
-  ].join('\n')
-}
-
-async function persistPipelineSettings() {
-  try {
-    const res = await updateConfig({ settings: pipelineSettings.value })
-    pipelineSettings.value = { ...pipelineSettings.value, ...res.data.settings }
-    configContent.value = res.data.content
-    configFileEntry.value = {
-      ...configFileEntry.value,
-      path: res.data.path || configFileEntry.value.path
-    }
-    configSaveMessage.value = '已保存'
-    resetConfigSaveMessage()
-  } catch (error) {
-    configSaveMessage.value = '保存失败'
-    resetConfigSaveMessage()
-  }
+  toast({ title, desc, type })
 }
 
 function resetConfigSaveMessage() {
-  if (configSaveTimer) {
-    clearTimeout(configSaveTimer)
-  }
-  configSaveTimer = setTimeout(() => {
-    configSaveMessage.value = ''
-  }, 2000)
+  clearTimeout(configSaveTimer)
+  configSaveTimer = setTimeout(() => { configSaveMessage.value = '' }, 2000)
 }
 
 function mapTaskDetections(task) {
   const taskSampleInterval = Number(task.sample_interval_seconds || 0)
   const taskFrameStride = Number(task.frame_stride || 0)
   const taskFps = Number(task.fps || 0)
-
   return (task.detections || []).map((d, idx) => ({
     id: d.id || `det_${idx}`,
     frame: d.frame,
@@ -517,14 +296,7 @@ function buildHistoryItem(task) {
 
 function upsertHistory(task) {
   const nextItem = buildHistoryItem(task)
-  history.value = [
-    nextItem,
-    ...history.value.filter(item => String(item.id) !== String(nextItem.id))
-  ]
-}
-
-function replaceHistory(tasks) {
-  history.value = tasks.map(buildHistoryItem)
+  history.value = [nextItem, ...history.value.filter(item => String(item.id) !== String(nextItem.id))]
 }
 
 function removeHistoryByIds(ids) {
@@ -545,147 +317,47 @@ function applyTaskPlayback(task, logPrefix = '[DONE]') {
   currentTime.value = 0
   progress.value = Number(task.progress || 100)
   status.value = 'playing'
-  logs.value = [
-    ...logs.value,
-    `${logPrefix} 已加载任务 ${task.task_id}: ${task.original_filename}`,
-    `${logPrefix} 播放原视频，前端叠加 ${detections.length} 条检测框`,
-    resolvedResultVideoUrl
-      ? `${logPrefix} 可切换到 YOLO 输出视频，直接查看后端内嵌框`
-      : `${logPrefix} 当前任务未提供 YOLO 输出视频，保持前端叠框回放`
-  ]
+  logs.value = [`${logPrefix} 已加载视频 ${task.task_id}：${task.original_filename}`]
   upsertHistory(task)
 }
 
-function buildProcessPayload() {
-  const targetLabels = String(pipelineSettings.value.targetLabels || '')
-    .split(',')
-    .map(item => item.trim())
-    .filter(Boolean)
-
-  return {
-    model_path: String(pipelineSettings.value.modelPath || '').trim(),
-    target_labels: targetLabels.length > 0 ? targetLabels : ['fish'],
-    confidence_threshold: Number(pipelineSettings.value.confidenceThreshold || 0.25),
-    iou_threshold: Number(pipelineSettings.value.iouThreshold || 0.45),
-    frame_stride: Number(pipelineSettings.value.frameStride || 5),
-    batch_size: Number(pipelineSettings.value.batchSize || 8),
-    use_half: Boolean(pipelineSettings.value.useHalf)
-  }
-}
-
-// --- API: File Drop (Real) ---
+// --- Upload ---
 async function handleFileDrop(file) {
-  workspaceMode.value = 'video'
   if (!file.name.toLowerCase().endsWith('.mp4')) {
-    showToast('文件格式不支持', '当前只支持上传 MP4 视频', 'alert')
+    showToast('只支持 MP4 视频', `“${file.name}”不是 MP4 文件。转换格式后重新上传。`, 'alert')
     return
   }
-
+  activeView.value = 'console'
+  workspaceMode.value = 'video'
   fileName.value = file.name
-  const fileSizeMB = (file.size / 1024 / 1024).toFixed(2)
-  const processPayload = buildProcessPayload()
-
+  const fileSizeMB = (file.size / 1024 / 1024).toFixed(1)
+  invalidateWorkspaceRequests()
+  const version = workspaceGeneration
+  uploadAbort = new AbortController()
+  currentTaskId.value = null
+  analysisState.value = null
   status.value = 'processing'
   progress.value = 0
-  logs.value = [`SYS_INIT: Uploading ${file.name} (${fileSizeMB} MB)`]
-  logs.value = [...logs.value, `[CFG] 目标类别: ${processPayload.target_labels.join(', ')}`]
-  logs.value = [...logs.value, processPayload.model_path
-    ? `[CFG] 模型权重: ${processPayload.model_path}`
-    : '[CFG] 模型权重: 使用后端 backend/models/model_best.pt']
-  logs.value = [...logs.value, `[CFG] 抽帧间隔: ${processPayload.frame_stride}, batch: ${processPayload.batch_size}, 半精度: ${processPayload.use_half ? '开启' : '关闭'}`]
-  showToast('已上传遥测数据', file.name, 'info')
-
+  logs.value = [`正在上传 ${file.name}（${fileSizeMB} MB）`, '等待本地后端保存视频…']
   try {
-    // Step 1: Upload
-    logs.value = [...logs.value, `[NET] 正在上传到遥测节点...`]
-    const uploadRes = await uploadVideo(file)
+    const uploadRes = await uploadVideo(file, uploadAbort.signal)
+    if (version !== workspaceGeneration) return
     const task = uploadRes.data
     currentTaskId.value = task.task_id
     upsertHistory(task)
-    progress.value = 0
-    logs.value = [...logs.value, `[NET] 上传完成，任务 ID: ${task.task_id}`]
-
-    // Step 2: Start processing
-    logs.value = [...logs.value, `[PROC] 启动推理引擎...`]
-    showToast('管线激活', '推理引擎已启用', 'warn')
-    await startProcess(task.task_id, processPayload)
-    progress.value = 0
-    logs.value = [...logs.value, `[PROC] 推理引擎已启动，等待后端返回真实帧进度...`]
-
-    // Step 3: Poll until done
-    startPolling(task.task_id)
+    logs.value = [...logs.value, `上传完成，视频编号 ${task.task_id}`]
+    videoUrl.value = toMediaUrl(task.uploaded_video_path)
+    resultVideoUrl.value = null
+    playbackMode.value = 'overlay'
+    boxes.value = []
+    status.value = 'playing'
+    showToast('视频已就绪', '在右侧选择注册模型，开始分析。', 'success')
   } catch (error) {
+    if (version !== workspaceGeneration || error.code === 'ERR_CANCELED') return
     const errMsg = error.response?.data?.detail || error.message || '上传失败'
     logs.value = [...logs.value, `[ERR] ${errMsg}`]
-    showToast('处理失败', errMsg, 'alert')
+    showToast('上传失败', `${errMsg}。检查后端连接后重试。`, 'alert')
     status.value = 'idle'
-  }
-}
-
-// --- Polling ---
-function startPolling(taskId) {
-  stopPolling()
-  let prevProgress = -1
-  let prevFrame = -1
-  let prevTotal = -1
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await getTask(taskId)
-      const task = res.data
-      const pct = Number(task.progress || 0)
-      const currentFrame = Number(task.progress_current_frame || 0)
-      const totalFrames = Number(task.progress_total_frames || 0)
-      const progressMessage = task.progress_message || ''
-
-      if (task.progress !== undefined) {
-        progress.value = pct
-      }
-      upsertHistory(task)
-
-      if (
-        task.status === 'processing' &&
-        totalFrames > 0 &&
-        (pct !== prevProgress || currentFrame !== prevFrame || totalFrames !== prevTotal)
-      ) {
-        logs.value = [
-          ...logs.value,
-          `[PROC] ${progressMessage || `后端正在处理第 ${currentFrame}/${totalFrames} 帧`} (${pct}%)`
-        ]
-        prevProgress = pct
-        prevFrame = currentFrame
-        prevTotal = totalFrames
-      }
-
-      if (task.status === 'completed') {
-        stopPolling()
-        progress.value = 100
-        const detCount = (task.detections || []).length
-        logs.value = [...logs.value, `[DONE] 处理完成，检测到 ${detCount} 个实体`]
-        if (detCount > 0) {
-          const labels = [...new Set(task.detections.map(d => d.label))]
-          logs.value = [...logs.value, `[INFO] 检测到的类别: ${labels.join(', ')}`]
-        }
-        showToast('处理完成', detCount > 0 ? `找到 ${detCount} 个实体` : '未检测到目标', detCount > 0 ? 'success' : 'info')
-        applyTaskPlayback(task)
-      }
-
-      if (task.status === 'failed') {
-        stopPolling()
-        logs.value = [...logs.value, `[ERR] 任务处理失败`]
-        showToast('处理失败', '请检查后端日志', 'alert')
-        status.value = 'idle'
-      }
-    } catch (error) {
-      logs.value = [...logs.value, `[ERR] 轮询失败: ${error.message}`]
-      stopPolling()
-    }
-  }, 1000)
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
   }
 }
 
@@ -695,218 +367,147 @@ function handleCloseWorkspace() {
   fileName.value = ''
   videoUrl.value = null
   resultVideoUrl.value = null
-  playbackMode.value = toMediaUrl(task.result_video_path) ? 'result' : 'overlay'
+  playbackMode.value = 'overlay'
+  analysisState.value = null
   boxes.value = []
   logs.value = []
   progress.value = 0
   currentTime.value = 0
   currentTaskId.value = null
   workspaceMode.value = 'video'
-  stopPolling()
+  invalidateWorkspaceRequests()
 }
 
 function handleTimelineClick(time) {
-  const videoObj = document.querySelector('video')
-  if (videoObj) {
-    videoObj.currentTime = time
-  }
+  seekTo(time)
+  currentTime.value = time
 }
 
 function handleFileSelect(item) {
   if (item.type === 'config') {
     activeView.value = 'console'
+    handleCloseWorkspace()
     workspaceMode.value = 'config'
-    status.value = 'idle'
     fileName.value = item.name
-    videoUrl.value = null
-    resultVideoUrl.value = null
-    playbackMode.value = 'overlay'
-    boxes.value = []
-    logs.value = []
-    progress.value = 0
-    currentTime.value = 0
-    currentTaskId.value = null
-    stopPolling()
     return
   }
-
-  if (item.status === 'processed' && item.url) {
-    handlePlayRecord(item)
-  }
+  if (item.sourceUrl || item.url) handlePlayRecord(item)
 }
 
 function setSelectionMode(value) {
   selectionMode.value = Boolean(value)
-  if (!selectionMode.value) {
-    selectedFileIds.value = []
-  }
+  if (!selectionMode.value) selectedFileIds.value = []
 }
 
 function toggleFileSelection(item) {
   const id = String(item.id)
-  if (selectedFileIds.value.includes(id)) {
-    selectedFileIds.value = selectedFileIds.value.filter(currentId => currentId !== id)
-  } else {
-    selectedFileIds.value = [...selectedFileIds.value, id]
-  }
+  selectedFileIds.value = selectedFileIds.value.includes(id) ? selectedFileIds.value.filter(currentId => currentId !== id) : [...selectedFileIds.value, id]
 }
 
 function getHistoryItemById(id) {
   return history.value.find(item => String(item.id) === String(id))
 }
 
-function syncTaskInHistory(task) {
-  upsertHistory(task)
-}
-
-function beginTaskPlayback(task, logPrefix = '[PROC]') {
-  activeView.value = 'console'
-  workspaceMode.value = 'video'
-  stopPolling()
-  const resolvedResultVideoUrl = toMediaUrl(task.result_video_path) || null
-  currentTaskId.value = task.task_id
-  fileName.value = task.original_filename
-  videoUrl.value = toMediaUrl(task.uploaded_video_path)
-  resultVideoUrl.value = resolvedResultVideoUrl
-  playbackMode.value = resolvedResultVideoUrl ? 'result' : 'overlay'
-  boxes.value = []
-  currentTime.value = 0
-  progress.value = 0
-  status.value = 'processing'
-  logs.value = [
-    `${logPrefix} 已载入任务 ${task.task_id}: ${task.original_filename}`,
-    `${logPrefix} 正在重新识别视频，等待后端返回真实进度...`
-  ]
-  syncTaskInHistory(task)
-  startPolling(task.task_id)
+async function queueNewAnalysis(taskId) {
+  const [taskResponse, historyResponse, modelsResponse] = await Promise.all([getTask(taskId), listAnalysisRuns(taskId), listAnalysisModels()])
+  const previous = historyResponse.data.items[0]
+  const model = modelsResponse.data.items.find(item => item.id === previous?.config_snapshot.models.fish) || modelsResponse.data.items[0]
+  if (!model) throw new Error('还没有注册模型。先在后端注册授权权重')
+  await createAnalysisRun(taskId, { kind: 'fish', models: { fish: model.id }, settings: previous?.config_snapshot.settings || {} })
+  return taskResponse.data
 }
 
 async function handleSingleFileAction({ action, item }) {
   const taskId = item.taskId || Number(item.id)
   if (!Number.isFinite(taskId)) {
-    showToast('操作失败', '无效的任务编号', 'alert')
+    showToast('无法操作这个视频', '视频编号无效。刷新页面后重试。', 'alert')
     return
   }
-
   try {
     if (action === 'delete') {
-      const confirmed = window.confirm(`确认删除 ${item.name} 吗？这会同时删除本地文件和数据库记录。`)
+      const confirmed = await confirmDialog({ title: `删除“${item.name}”？`, description: '本地视频文件和数据库记录会一起删除，无法恢复。被分析引用的视频不能删除。', confirmLabel: '删除视频', danger: true })
       if (!confirmed) return
       await mutateTask(taskId, { action: 'delete' })
       removeHistoryByIds([item.id])
-      if (currentTaskId.value === taskId) {
-        handleCloseWorkspace()
-      }
-      showToast('已删除', item.name, 'info')
+      if (currentTaskId.value === taskId) handleCloseWorkspace()
+      showToast('已删除', item.name)
       return
     }
-
     if (action === 'rename') {
-      const nextName = window.prompt('输入新的文件名', item.name)
-      if (!nextName || nextName.trim() === item.name) return
-      const res = await mutateTask(taskId, { action: 'rename', name: nextName.trim() })
-      syncTaskInHistory(res.data)
-      if (currentTaskId.value === taskId) {
-        fileName.value = res.data.original_filename
-      }
+      const nextName = await promptDialog({ title: '重命名视频', label: '文件名', value: item.name, confirmLabel: '重命名' })
+      if (!nextName || nextName === item.name) return
+      const res = await mutateTask(taskId, { action: 'rename', name: nextName })
+      upsertHistory(res.data)
+      if (currentTaskId.value === taskId) fileName.value = res.data.original_filename
       showToast('已重命名', res.data.original_filename, 'success')
       return
     }
-
     if (action === 'copy') {
       const res = await mutateTask(taskId, { action: 'copy' })
-      syncTaskInHistory(res.data)
+      upsertHistory(res.data)
       showToast('已复制', res.data.original_filename, 'success')
       return
     }
-
     if (action === 'rerun') {
-      const res = await mutateTask(taskId, { action: 'rerun', ...buildProcessPayload() })
-      beginTaskPlayback(res.data, '[RERUN]')
-      showToast('已重做', res.data.original_filename, 'warn')
+      const version = workspaceGeneration
+      const task = await queueNewAnalysis(taskId)
+      if (version !== workspaceGeneration) return
+      const wasCurrent = currentTaskId.value === taskId
+      applyTaskPlayback(task, '[RERUN]')
+      if (wasCurrent) analysisPanelRef.value?.refresh()
+      showToast('分析已排队', '沿用上次的模型与参数。旧结果保留，可在分析记录中切换。')
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '操作失败'
-    logs.value = [...logs.value, `[ERR] ${errMsg}`]
     showToast('操作失败', errMsg, 'alert')
   }
 }
 
 async function handleBatchFileAction({ action }) {
-  if (action === 'clear-selection') {
-    selectedFileIds.value = []
-    return
-  }
-
-  const selectedItems = selectedFileIds.value
-    .map(id => getHistoryItemById(id))
-    .filter(Boolean)
-
-  if (selectedItems.length === 0) {
-    showToast('未选择文件', '请先选择要操作的文件', 'info')
-    return
-  }
-
-  const taskIds = selectedItems
-    .map(item => item.taskId || Number(item.id))
-    .filter(id => Number.isFinite(id))
-
+  const selectedItems = selectedFileIds.value.map(id => getHistoryItemById(id)).filter(Boolean)
+  if (!selectedItems.length) return
+  const taskIds = selectedItems.map(item => item.taskId || Number(item.id)).filter(id => Number.isFinite(id))
   try {
     if (action === 'delete') {
-      const confirmed = window.confirm(`确认批量删除 ${selectedItems.length} 个文件吗？这会同时删除本地文件和数据库记录。`)
+      const confirmed = await confirmDialog({ title: `删除 ${selectedItems.length} 个视频？`, description: '本地视频文件和数据库记录会一起删除，无法恢复。被分析引用的视频不能删除。', confirmLabel: `删除 ${selectedItems.length} 个视频`, danger: true })
       if (!confirmed) return
       await batchMutateTasks({ action: 'delete', task_ids: taskIds })
       removeHistoryByIds(selectedItems.map(item => item.id))
-      if (currentTaskId.value && taskIds.includes(currentTaskId.value)) {
-        handleCloseWorkspace()
-      }
+      if (currentTaskId.value && taskIds.includes(currentTaskId.value)) handleCloseWorkspace()
       setSelectionMode(false)
-      showToast('批量删除完成', `共删除 ${selectedItems.length} 个文件`, 'info')
+      showToast('已删除', `${selectedItems.length} 个视频`)
       return
     }
-
-    if (action === 'rename') {
-      if (selectedItems.length !== 1) {
-        showToast('批量重命名受限', '重命名一次只能选择 1 个文件', 'alert')
-        return
-      }
-      await handleSingleFileAction({ action: 'rename', item: selectedItems[0] })
-      return
-    }
-
     if (action === 'copy') {
       const res = await batchMutateTasks({ action: 'copy', task_ids: taskIds })
-      for (const task of res.data.tasks || []) {
-        syncTaskInHistory(task)
-      }
+      for (const task of res.data.tasks || []) upsertHistory(task)
       setSelectionMode(false)
-      showToast('批量拷贝完成', `共生成 ${selectedItems.length} 个副本`, 'success')
+      showToast('已复制', `${selectedItems.length} 个视频`, 'success')
       return
     }
-
     if (action === 'rerun') {
-      const res = await batchMutateTasks({ action: 'rerun', task_ids: taskIds, ...buildProcessPayload() })
-      const tasks = res.data.tasks || []
-      tasks.forEach(syncTaskInHistory)
-      setSelectionMode(false)
-      if (tasks.length > 0) {
-        beginTaskPlayback(tasks[0], '[BATCH]')
+      let count = 0
+      for (const taskId of taskIds) {
+        try { await queueNewAnalysis(taskId); count += 1 }
+        catch { showToast('部分分析没有排队', `已排队 ${count} 个，其余视频请单独重试。`, 'alert'); return }
       }
-      showToast('批量重做已启动', `共启动 ${tasks.length} 个任务`, 'warn')
+      setSelectionMode(false)
+      analysisPanelRef.value?.refresh()
+      showToast('分析已排队', `${count} 个视频各自新建一次分析，旧结果保留。`)
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '批量操作失败'
-    logs.value = [...logs.value, `[ERR] ${errMsg}`]
     showToast('批量操作失败', errMsg, 'alert')
   }
 }
 
 async function handlePlayRecord(record) {
-  activeView.value = 'console'
+  activeView.value = activeView.value === 'records' ? 'console' : activeView.value
   workspaceMode.value = 'video'
-  stopPolling()
-
-  const fallbackTask = {
+  invalidateWorkspaceRequests()
+  const version = workspaceGeneration
+  taskAbort = new AbortController()
+  applyTaskPlayback({
     task_id: record.taskId || Number(record.id),
     original_filename: record.name,
     uploaded_video_path: record.sourceUrl || record.url || '',
@@ -914,69 +515,166 @@ async function handlePlayRecord(record) {
     detections: record.detections || [],
     progress: 100,
     status: 'completed'
-  }
-
-  applyTaskPlayback(fallbackTask, '[HISTORY]')
-
+  }, '[HISTORY]')
   const taskId = record.taskId || Number(record.id)
   if (!Number.isFinite(taskId)) return
-
   try {
-    const res = await getTask(taskId)
+    const res = await getTask(taskId, taskAbort.signal)
+    if (version !== workspaceGeneration) return
     applyTaskPlayback(res.data, '[HISTORY]')
   } catch (error) {
-    logs.value = [...logs.value, `[WARN] 历史任务详情加载失败，已使用缓存数据回放: ${error.message}`]
+    if (version !== workspaceGeneration || error.code === 'ERR_CANCELED') return
+    logs.value = [...logs.value, `[WARN] 视频详情读取失败，使用缓存回放：${error.message}`]
   }
 }
 
-async function handleSaveConfig() {
+function applyPipelineConfig(data) {
+  configContent.value = data.content || ''
+  configSavedContent.value = configContent.value
+  configSettings.value = data.settings || null
+}
+
+// The form sends structured settings and the backend writes canonical TOML; the code view sends the file as typed.
+async function savePipelineConfig(payload, hint) {
   try {
-    const res = await updateConfig({ content: configContent.value })
-    pipelineSettings.value = { ...pipelineSettings.value, ...res.data.settings }
-    configContent.value = res.data.content
+    const res = await updateConfig(payload)
+    applyPipelineConfig(res.data)
     configSaveMessage.value = '已保存'
     resetConfigSaveMessage()
+    return true
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '配置保存失败'
     configSaveMessage.value = '保存失败'
-    logs.value = [...logs.value, `[ERR] ${errMsg}`]
-    showToast('配置保存失败', errMsg, 'alert')
+    showToast('配置没有保存', `${errMsg}。${hint}`, 'alert')
     resetConfigSaveMessage()
+    return false
   }
 }
+const saveConfigContent = () => savePipelineConfig({ content: configContent.value }, '检查 TOML 语法后重试。')
+const saveConfigSettings = settings => savePipelineConfig({ settings }, '检查填写的数值后重试。')
 
 async function refreshHistory() {
   const res = await listTasks()
-  replaceHistory(res.data || [])
+  history.value = (res.data || []).map(buildHistoryItem)
 }
 
 async function loadPipelineConfig() {
   const res = await getConfig()
-  pipelineSettings.value = { ...pipelineSettings.value, ...(res.data.settings || {}) }
-  configContent.value = res.data.content || ''
-  configFileEntry.value = {
-    ...configFileEntry.value,
-    path: res.data.path || configFileEntry.value.path
-  }
+  applyPipelineConfig(res.data)
+  configFileEntry.value = { ...configFileEntry.value, path: res.data.path || configFileEntry.value.path }
 }
 
+watch(activeView, () => setSelectionMode(false))
+
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown)
+  document.addEventListener('fullscreenchange', syncFullscreen)
+  checkHealth()
   try {
     await Promise.all([refreshHistory(), loadPipelineConfig()])
   } catch (error) {
-    const errMsg = error.response?.data?.detail || error.message || '初始化失败'
-    logs.value = [...logs.value, `[WARN] ${errMsg}`]
+    showToast('无法读取视频库', '确认本地后端已启动后刷新页面。', 'alert')
   }
 })
 
 onBeforeUnmount(() => {
-  stopPolling()
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('fullscreenchange', syncFullscreen)
+  invalidateWorkspaceRequests()
   stopResize()
-  if (configSaveTimer) {
-    clearTimeout(configSaveTimer)
-  }
+  clearTimeout(healthTimer)
+  clearTimeout(configSaveTimer)
 })
 </script>
 
 <style scoped>
+.app { display: grid; grid-template-rows: 48px 1fr 28px; height: 100dvh; }
+.topbar { display: flex; align-items: center; gap: 24px; padding: 0 12px 0 16px; background: var(--canvas); box-shadow: inset 0 -1px 0 var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
+.brand-name { font-weight: 600; letter-spacing: -0.01em; }
+.brand-sub { color: var(--ink-3); font-size: var(--text-small); white-space: nowrap; }
+.nav { display: flex; gap: 2px; height: 100%; }
+.nav-item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 12px; border: 0; background: none; font: inherit; font-weight: 500; color: var(--ink-3); cursor: pointer; transition: color 120ms var(--ease); }
+.nav-item:hover { color: var(--ink); }
+.nav-item[aria-current=page] { color: var(--ink); }
+.nav-item[aria-current=page]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 1px; background: var(--accent); }
+.nav-item[aria-current=page] .tabler-icon { color: var(--accent); }
+.top-actions { display: flex; gap: 4px; margin-inline-start: auto; }
+.main { position: relative; min-height: 0; overflow: hidden; }
+.layout {
+  display: grid; height: 100%; padding: 10px; column-gap: 0; row-gap: 10px;
+  grid-template-columns: var(--left) 10px minmax(0, 1fr) 10px var(--right);
+  grid-template-rows: minmax(0, 1fr);
+  grid-template-areas: "library hl center hr inspector";
+}
+.layout.wall {
+  --grid-line: color-mix(in oklch, var(--line) 40%, transparent);
+  grid-template-columns: minmax(260px, 21%) minmax(0, 1fr) minmax(280px, 23%);
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "head head head" "left center side";
+  gap: 12px; padding: 12px 14px;
+  background-color: var(--canvas);
+  background-image:
+    radial-gradient(ellipse 60% 45% at 50% 0%, color-mix(in oklch, var(--accent) 7%, transparent), transparent 70%),
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: auto, 32px 32px, 32px 32px;
+  background-position: center top, -1px -1px, -1px -1px;
+}
+.layout.wall .area-center { gap: 10px; }
+.layout.wall .timeline-card { border-radius: var(--radius); }
+@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.stage) { height: 96px; } }
+.area-left { grid-area: left; min-height: 0; min-width: 0; }
+.app.immersive { grid-template-rows: 0 1fr 0; }
+.app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
+.area-library { grid-area: library; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.area-inspector { grid-area: inspector; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.area-head { grid-area: head; min-width: 0; }
+.area-center { grid-area: center; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; }
+.grow { flex: 1; min-height: 0; }
+.handle { position: relative; cursor: col-resize; touch-action: none; }
+.handle-left { grid-area: hl; }
+.handle-right { grid-area: hr; }
+.handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 3px; height: 28px; translate: -50% -50%; border-radius: 2px; background: var(--line-strong); opacity: 0; transition: opacity 120ms var(--ease); }
+.handle:hover::after, .handle:active::after { opacity: 1; }
+.timeline-card { flex: none; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.inspector-empty { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+.inspector-empty h2 { font-size: var(--text-title); font-weight: 600; }
+.steps { display: flex; flex-direction: column; gap: 14px; }
+.steps li { display: flex; gap: 10px; }
+.steps strong { font-weight: 500; }
+.num { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; font-size: var(--text-caption); font-weight: 600; color: var(--ink-2); background: var(--surface-3); }
+.statusbar .mono { font-size: 1em; }
+.statusbar { display: flex; align-items: center; gap: 14px; padding: 0 14px; font-size: var(--text-caption); color: var(--ink-3); background: var(--canvas); box-shadow: inset 0 1px 0 var(--line); white-space: nowrap; }
+.health { display: inline-flex; align-items: center; gap: 6px; }
+.health[data-state=online] .dot { color: var(--ok); }
+.health[data-state=offline] { color: var(--danger); }
+.health[data-state=checking] .dot { color: var(--ink-3); }
+.context { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-2); }
+.truncate { overflow: hidden; text-overflow: ellipsis; }
+.sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: 0.6; }
+.spacer { flex: 1; }
+.faint { color: var(--ink-3); }
+
+@media (max-width: 1180px) {
+  .brand-sub { display: none; }
+  .layout { grid-template-columns: 232px 8px minmax(0, 1fr) 8px 312px; }
+}
+@media (max-width: 1200px) and (min-width: 901px) {
+  .layout.wall { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall .area-left { min-height: auto; }
+}
+@media (max-width: 900px) {
+  .topbar { gap: 8px; padding: 0 8px; }
+  .nav-item { padding: 0 8px; }
+  .layout, .layout.wall { display: flex; flex-direction: column; overflow-y: auto; padding: 8px; gap: 8px; }
+  .handle { display: none; }
+  .area-library { flex: none; height: 220px; }
+  .area-center { flex: none; height: 62vh; min-height: 360px; }
+  .area-inspector { flex: none; min-height: 560px; }
+  .area-side, .area-left { flex: none; }
+  .statusbar .faint { display: none; }
+}
 </style>
