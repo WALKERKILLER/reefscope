@@ -68,3 +68,9 @@ completed Run 可调用 `GET /api/v1/analysis-runs/{run_id}/tracks`。默认每�
 `sampled_duration_seconds` 表示所选轨迹观测时间跨度与查询窗口的交集，包含该跨度内的断轨间隔；`track_seconds_total` 才是通过 gap 与 ROI 筛选后积分的时间质量。二者不可互换。全零栅格归一化后仍全零，raw 不平滑。
 
 同一路由使用 `export=csv` 下载 raw 栅格。CSV 与 JSON 使用同一计算结果，携带 Run、模型 hash、窗口、筛选、ROI、算法、单位和采样配置。反复查询、播放、seek 与浏览器帧率不会增加 raw 值。
+
+## 同源统计与导出
+
+`GET /api/v1/analysis-runs/{run_id}/summary` 接受与热图相同的时间窗、track_id、class_id 和 ROI。返回窗口内真实观测 ID 数、追踪观测次数、有效段 track-seconds、平均置信度与类别观测次数；每个指标携带单位、分母、来源和缺失原因。孤点可贡献观测 ID 数，但不增加停留秒数；窗口外支撑点可贡献裁剪积分，但不冒充窗口内检测。
+
+使用 `export=json` 下载同一结果的 `analysis_report.json`。精度、MOT 指标和珊瑚覆盖率没有所需真值或模型时保留 null 与原因。平均置信度是模型输出的描述性统计，不是准确率。训练七章报告与独立 EvaluationRun 仍按批准契约实施，本接口不替代它们。

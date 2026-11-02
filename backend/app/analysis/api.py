@@ -101,3 +101,23 @@ class Heatmap(APIView):
             return Response(result)
         except (ValueError, OSError):
             return Response({"error":{"code":"heatmap_unavailable_or_invalid_query"}}, status=400 if run.status == "completed" else 409)
+
+
+class Summary(APIView):
+    def get(self, request, run_id):
+        from django.http import JsonResponse
+        from .query import parameters
+        from .summary import summarize
+        run = get_object_or_404(AnalysisRun, pk=run_id)
+        try:
+            if set(request.query_params) - {"start_ms","end_ms","track_id","class_id","roi","export"}:
+                raise ValueError("unknown_parameter")
+            result = summarize(run, parameters(request.query_params))
+            response = JsonResponse(result,json_dumps_params={"ensure_ascii":False,"allow_nan":False})
+            if request.query_params.get("export") == "json":
+                response["Content-Disposition"] = 'attachment; filename="analysis_report.json"'
+            elif "export" in request.query_params:
+                raise ValueError("invalid_export")
+            return response
+        except (ValueError,OSError):
+            return Response({"error":{"code":"summary_unavailable_or_invalid_query"}},status=400 if run.status == "completed" else 409)
