@@ -11,7 +11,7 @@
 - A 平台：`backend/config/`、`backend/app/views.py`、数据模型、迁移、任务调度、容器与 CI。
 - B 鱼类：`backend/app/services/detector.py` 及未来 tracking/heatmap 模块；不得把前端插值 ID 当真实追踪。
 - C 珊瑚：后续新增离线训练和分割适配器，当前尚无实现目录。
-- D 前端：`frontend/src/`，沿用 Vue、Artplayer 与现有视觉体系。
+- D 前端：`frontend/src/`，Vue 与 Artplayer；视觉令牌和基础组件遵循 [前端设计系统](frontend.md)。
 - E 评估：`fixtures/mvp/`、评测契约及后续确定性报告；公共字段变动与 A/C/B 联审。
 - 维护者：`scripts/`、`tests/`、`.github/` 和文档路由。
 
