@@ -79,3 +79,7 @@ else:
 # 大文件上传支持
 DATA_UPLOAD_MAX_MEMORY_SIZE = 524288000
 FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000
+
+# Worker outputs are read only through the Run API, never through /media/.
+ANALYSIS_ROOT = Path(os.environ.get("ANALYSIS_ROOT", str(BASE_DIR / ".analysis")))
+YOLO_MODEL_ROOT = Path(os.environ.get("YOLO_MODEL_ROOT", str(BASE_DIR / "models")))

@@ -23,6 +23,6 @@ CI 的 Web 层依赖以 `backend/requirements-ci.in` 为输入，用 `uv pip com
 
 当前测试位置：`tests/test_repository_policy.py` 检查公开文件与指导入口的拒绝反例；`backend/app/tests.py` 经 Django runner 验证健康/路由；`docs/mvp/validate_fixtures.py` 读取共享 `fixtures/mvp/`。上游 `scripts/verify-*.mjs` 校验治理格式/生命周期/来源清单，`scripts/run-gates.mjs` 从 manifest 选择它们。
 
-目前没有真实 GPU、Worker 恢复和浏览器端到端测试；相关功能改动时在其实际边界新增，不创造空测试层级。外部网络/硬件可隔离，项目自己的组合尽量保持真实；断言公开结果、退出状态和持久化状态，不依赖私有调用顺序。
+`backend/app/test_analysis.py` 验证 v1 Run 的状态、恢复、重试和私有路径边界，并以两个独立进程竞争临时 SQLite 数据库验证单次领取。模型适配器在 Web 层测试中隔离；此证据不能证明真实模型精度。浏览器端到端与真实视频科研验收仍需实际输入。外部网络/硬件可隔离，项目自己的组合尽量保持真实；断言公开结果、退出状态和持久化状态，不依赖私有调用顺序。
 
 文档或机械变更用语义 Review 和门禁，不制造无行为意义的测试。变更后的测试应能揭示所述回归；重复保护同一行为的测试需说明额外风险。学习指导的静态入口/摘要校验不等同于 LLM 实际引导质量测试。
