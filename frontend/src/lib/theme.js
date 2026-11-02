@@ -17,7 +17,7 @@ export function chartTokens() {
     const value = getComputedStyle(probe).color
     return toRgb(value)
   }
-  const tokens = { ink: read('--ink'), ink2: read('--ink-2'), ink3: read('--ink-3'), line: read('--line'), lineStrong: read('--line-strong'), surface: read('--surface'), surface2: read('--surface-2'), accent: read('--accent'), warn: read('--warn'), canvas: read('--canvas') }
+  const tokens = { ink: read('--ink'), ink2: read('--ink-2'), ink3: read('--ink-3'), line: read('--line'), lineStrong: read('--line-strong'), surface: read('--surface'), surface2: read('--surface-2'), accent: read('--accent'), warn: read('--warn'), canvas: read('--canvas'), series: [read('--series-1'), read('--series-2')] }
   probe.remove()
   return tokens
 }

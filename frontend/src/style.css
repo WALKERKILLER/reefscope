@@ -25,6 +25,9 @@
   --danger: oklch(0.55 0.17 22);
   --danger-soft: oklch(0.55 0.17 22 / 0.09);
   --ok: oklch(0.52 0.12 150);
+  /* Two-series chart identity; CVD-checked pair, distinct from status hues. */
+  --series-1: oklch(0.55 0.13 250);
+  --series-2: oklch(0.64 0.16 45);
   --shadow-pop: 0 0 0 1px oklch(0.22 0.03 240 / 0.08), 0 8px 24px -6px oklch(0.22 0.03 240 / 0.18);
   --stage: oklch(0.13 0.012 240);
 }
@@ -49,6 +52,8 @@
   --danger: oklch(0.737 0.126 15);
   --danger-soft: oklch(0.737 0.126 15 / 0.12);
   --ok: oklch(0.8 0.13 155);
+  --series-1: oklch(0.76 0.11 240);
+  --series-2: oklch(0.78 0.13 55);
   --shadow-pop: 0 0 0 1px oklch(0 0 0 / 0.4), 0 12px 32px -8px oklch(0 0 0 / 0.55);
   --stage: oklch(0.11 0.012 240);
 }

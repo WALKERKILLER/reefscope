@@ -50,3 +50,44 @@ class AnalysisRun(models.Model):
     error_code = models.CharField(max_length=60, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class ImmutableResearchRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        if not self._state.adding:
+            raise ValidationError("immutable_research_record")
+        return super().save(*args, **kwargs)
+
+
+class TrainingRun(ImmutableResearchRecord):
+    model = models.ForeignKey(ModelVersion, on_delete=models.PROTECT, related_name="training_runs")
+    snapshot = models.JSONField()
+    source_hashes = models.JSONField()
+
+
+class EvaluationRun(ImmutableResearchRecord):
+    model = models.ForeignKey(ModelVersion, on_delete=models.PROTECT, related_name="evaluations")
+    analysis_run = models.ForeignKey(AnalysisRun, null=True, on_delete=models.PROTECT)
+    dataset_version = models.CharField(max_length=80)
+    dataset_sha256 = models.CharField(max_length=64)
+    protocol_id = models.CharField(max_length=80)
+    metrics = models.JSONField()
+    config = models.JSONField()
+    source_hashes = models.JSONField()
+    missing_inputs = models.JSONField(default=list)
+
+
+class TrainingReport(ImmutableResearchRecord):
+    model = models.ForeignKey(ModelVersion, on_delete=models.PROTECT, related_name="reports")
+    training_run = models.ForeignKey(TrainingRun, null=True, on_delete=models.PROTECT)
+    evaluation_run = models.ForeignKey(EvaluationRun, null=True, on_delete=models.PROTECT)
+    payload = models.JSONField()
+    markdown = models.TextField()
+    html = models.TextField()
