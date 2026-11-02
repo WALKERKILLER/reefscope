@@ -69,3 +69,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 
 - [0001：初始研究基线](0001-research-foundation.md)
 - [0002：正式 Agent 治理](0002-managed-agent-governance.md)
+- [0004：前端设计系统采用 Reka UI 与 Tabler Icons](0004-frontend-design-system.md)
