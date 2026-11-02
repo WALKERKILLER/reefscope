@@ -55,3 +55,49 @@ class Retry(APIView):
         if not retry(run_id):
             return Response({"error": {"code": "retry_not_allowed"}}, status=409)
         return Response(serialize(AnalysisRun.objects.get(pk=run_id)), status=202)
+
+
+class Tracks(APIView):
+    def get(self, request, run_id):
+        from .query import page
+        run = get_object_or_404(AnalysisRun, pk=run_id)
+        try:
+            return Response(page(run, request.query_params))
+        except (ValueError, OSError):
+            return Response({"error":{"code":"tracks_unavailable_or_invalid_query"}}, status=400 if run.status == "completed" else 409)
+
+
+class Heatmap(APIView):
+    def get(self, request, run_id):
+        import csv
+        import io
+        import json
+        from django.http import HttpResponse
+        from .heatmap import integrate
+        from .query import parameters, records
+        run = get_object_or_404(AnalysisRun, pk=run_id)
+        try:
+            if set(request.query_params) - {"start_ms", "end_ms", "track_id", "class_id", "roi", "width", "height", "export"}:
+                raise ValueError("unknown_parameter")
+            options = parameters(request.query_params)
+            config = run.config_snapshot["settings"]
+            result = integrate(records(run), **options, width=int(request.query_params.get("width",64)),
+                               height=int(request.query_params.get("height",36)),
+                               allowed_gap_seconds=config["allowed_gap_seconds"],camera_motion=config["camera_motion"])
+            result.update(run_id=str(run.pk), model_id=run.model_id, model_sha256=run.config_snapshot["model_sha256"])
+            if request.query_params.get("export", "json") == "csv":
+                output = io.StringIO()
+                writer = csv.writer(output)
+                metadata_keys = ["start_ms", "end_ms", "model_id", "model_sha256", "algorithm_version", "camera_motion", "coordinate_space", "value_unit", "track_filter", "class_id", "roi", "width", "height", "integration_steps", "allowed_gap_seconds"]
+                writer.writerow(["run_id","x","y","track_seconds",*metadata_keys])
+                for y,row in enumerate(result["values_raw"]):
+                    for x,value in enumerate(row):
+                        writer.writerow([run.pk,x,y,value,*[json.dumps(result[key],ensure_ascii=False) if key == "roi" else result[key] for key in metadata_keys]])
+                response = HttpResponse(output.getvalue(),content_type="text/csv; charset=utf-8")
+                response["Content-Disposition"] = 'attachment; filename="heatmap.csv"'
+                return response
+            if request.query_params.get("export", "json") != "json":
+                raise ValueError("invalid_format")
+            return Response(result)
+        except (ValueError, OSError):
+            return Response({"error":{"code":"heatmap_unavailable_or_invalid_query"}}, status=400 if run.status == "completed" else 409)

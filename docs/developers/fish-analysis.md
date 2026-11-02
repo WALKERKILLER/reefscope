@@ -55,4 +55,16 @@ Run 引用的源视频禁止通过旧任务接口删除或重命名，防止破�
 
 轨迹 ID 只在一个 Run 内有效，轨迹数包含遮挡导致的重复计数。PTS 缺失时仅在 fps 有效的情况下回退到帧号时间；摘要记录回退帧数。没有人工真值时不输出 IDF1、IDSW 或独立测试精度。训练拼图和重复图片可验证运行兼容性，不能替代连续视频与人工 GT。
 
-本切片提供注册、入队、Worker、详情与重试。分页轨迹、热图、同源统计导出、评估报告和前端接入按 [批准契约](../specs/0002-fish-analysis.md) 继续实现，尚不声明这些入口可用。
+Run API 提供注册、入队、Worker、详情、重试及下述轨迹与热图读取。同源统计摘要、评估报告和前端接入按 [批准契约](../specs/0002-fish-analysis.md) 继续实现，尚不声明剩余入口可用。
+
+## 轨迹与热图查询
+
+completed Run 可调用 `GET /api/v1/analysis-runs/{run_id}/tracks`。默认每页 500 条，`limit` 范围为 1 到 2000。返回 `items` 与 `next_cursor`；后续请求携带 cursor，并保持时间窗、track_id 和 class_id 不变。cursor 绑定 Run、attempt 和筛选，24 小时有效。缺失产物或未完成 Run 返回明确错误。
+
+`start_ms` 与 `end_ms` 使用左闭右开窗口。轨迹分页按真实观测过滤，热图会额外读取窗外支撑观测，先裁剪相邻观测段再积分。可选 `track_id`、`class_id`；热图另支持 `roi`，其值为 JSON 编码的归一化多边形顶点数组，3 到 64 个顶点。
+
+`GET /api/v1/analysis-runs/{run_id}/heatmap` 返回 raw 与 display 栅格。默认 64×36，可用 width/height 调整，最大 256×144。每个有效段固定取 16 个时间中点样本，超过 Run 配置 allowed_gap_seconds 的段整体丢弃，末尾孤点不增加时长。ROI 也按这些中点取样，结果是离散近似；输出记录步数与版本。
+
+`sampled_duration_seconds` 表示所选轨迹观测时间跨度与查询窗口的交集，包含该跨度内的断轨间隔；`track_seconds_total` 才是通过 gap 与 ROI 筛选后积分的时间质量。二者不可互换。全零栅格归一化后仍全零，raw 不平滑。
+
+同一路由使用 `export=csv` 下载 raw 栅格。CSV 与 JSON 使用同一计算结果，携带 Run、模型 hash、窗口、筛选、ROI、算法、单位和采样配置。反复查询、播放、seek 与浏览器帧率不会增加 raw 值。
