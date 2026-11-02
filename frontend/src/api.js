@@ -8,10 +8,11 @@ const http = axios.create({
   timeout: 30000
 })
 
-export function uploadVideo(file) {
+export function uploadVideo(file, signal) {
   const formData = new FormData()
   formData.append('video', file)
   return http.post('/upload', formData, {
+    signal,
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 }
@@ -20,8 +21,8 @@ export function startProcess(taskId, payload = {}) {
   return http.post(`/process/${taskId}`, payload)
 }
 
-export function getTask(taskId) {
-  return http.get(`/task/${taskId}`)
+export function getTask(taskId, signal) {
+  return http.get(`/task/${taskId}`, { signal })
 }
 
 export function listTasks() {
@@ -53,3 +54,15 @@ export function toMediaUrl(path) {
   if (path.startsWith('http')) return path
   return `${API_BASE_URL}${path}`
 }
+
+export const listAnalysisModels = (signal) => http.get('/v1/models', { signal })
+export const listAnalysisRuns = (taskId, signal) => http.get(`/v1/tasks/${taskId}/analysis-runs`, { signal })
+export const createAnalysisRun = (taskId, payload) => http.post(`/v1/tasks/${taskId}/analysis-runs`, payload)
+export const getAnalysisRun = (id, signal) => http.get(`/v1/analysis-runs/${id}`, { signal })
+export const retryAnalysisRun = (id) => http.post(`/v1/analysis-runs/${id}/retry`)
+export const getAnalysisTracks = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/tracks`, { params, signal })
+export const getAnalysisHeatmap = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/heatmap`, { params, signal })
+export const getAnalysisSummary = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/summary`, { params, signal })
+export const downloadAnalysis = (id, resource, params) => http.get(`/v1/analysis-runs/${id}/${resource}`, { params, responseType: 'blob' })
+
+export const getHealth = (signal) => http.get('/health', { signal, timeout: 5000 })

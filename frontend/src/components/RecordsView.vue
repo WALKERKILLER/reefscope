@@ -1,105 +1,60 @@
 <template>
-  <div class="flex-1 flex flex-col h-full bg-m3-bg overflow-hidden p-6 gap-6">
-    <div class="flex items-center justify-between">
+  <div class="records">
+    <header class="page-head">
       <div>
-        <h1 class="text-xl font-semibold text-m3-on-surface flex items-center gap-3">
-          <i class="w-6 h-6 text-m3-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 block">
-              <ellipse cx="12" cy="5" rx="9" ry="3"/>
-              <path d="M3 5V19a9 3 0 0 0 18 0V5"/>
-              <path d="M3 12a9 3 0 0 0 18 0"/>
-            </svg>
-          </i>
-          处理记录与索引
-        </h1>
-        <p class="text-sm text-m3-on-surface-variant mt-1">查看历史处理的视频任务，点击以重新加载分析结果</p>
+        <h1>记录</h1>
+        <p class="note">视频源与每次分析分开保存。打开视频后，可在分析记录中切换历次结果。</p>
       </div>
-      <div class="text-[12px] font-medium text-m3-on-surface-variant bg-m3-surface-container px-3 py-1.5 rounded-lg border border-m3-outline-variant/30">
-        共 {{ history.length }} 条记录
+    </header>
+    <section class="panel" aria-label="视频">
+      <div v-if="!history.length" class="empty">
+        <p class="empty-title">还没有视频</p>
+        <p class="note">在工作台上传 MP4 后，视频会出现在这里。</p>
       </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto pr-2 space-y-3">
-      <div v-if="history.length === 0" class="h-40 flex flex-col items-center justify-center text-m3-on-surface-variant/50 border-2 border-dashed border-m3-outline-variant/30 rounded-xl">
-        <i class="w-10 h-10 mb-3 opacity-50">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-10 h-10 block">
-            <ellipse cx="12" cy="5" rx="9" ry="3"/>
-            <path d="M3 5V19a9 3 0 0 0 18 0V5"/>
-            <path d="M3 12a9 3 0 0 0 18 0"/>
-          </svg>
-        </i>
-        <span>暂无处理记录</span>
-      </div>
-
-      <div
-        v-for="item in history"
-        :key="item.id"
-        @click="item.status === 'processed' ? $emit('play-record', item) : null"
-        class="flex items-center justify-between p-4 rounded-xl border border-m3-outline-variant/30 bg-m3-surface"
-        :class="item.status === 'processed' ? 'cursor-pointer hover:border-m3-primary/50 hover:shadow-sm group transition-all' : 'opacity-70 grayscale'"
-      >
-        <div class="flex items-center gap-4">
-          <div
-            class="w-12 h-12 rounded-lg flex items-center justify-center"
-            :class="item.status === 'processed' ? 'bg-m3-primary/10 text-m3-primary group-hover:bg-m3-primary group-hover:text-m3-on-primary transition-colors' : 'bg-m3-error/10 text-m3-error'"
-          >
-            <i class="w-6 h-6">
-              <svg v-if="item.status === 'processed'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 block">
-                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-                <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-                <path d="m10 11 5 3-5 3v-6Z"/>
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 block">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-            </i>
-          </div>
-          <div>
-            <h3 class="font-medium text-[14px] text-m3-on-surface group-hover:text-m3-primary transition-colors">{{ item.name }}</h3>
-            <div class="flex items-center gap-4 mt-1 text-[11px] text-m3-on-surface-variant font-mono">
-              <span class="flex items-center gap-1.5">
-                <i class="w-3.5 h-3.5">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5 block">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                </i>
-                {{ (item.duration / 60).toFixed(1) }} 分钟
-              </span>
-              <span class="uppercase tracking-wider">{{ String(item.id).substring(0, 8) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col items-end gap-2">
-          <span v-if="item.status === 'processed'" class="text-[11px] font-medium tracking-widest text-m3-success uppercase bg-m3-success/10 px-2 py-0.5 rounded">分析完成</span>
-          <span v-else class="text-[11px] font-medium tracking-widest text-m3-error uppercase bg-m3-error/10 px-2 py-0.5 rounded">由于错误中止</span>
-          <div v-if="item.status === 'processed'" class="text-[11px] text-m3-primary items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex font-medium">
-            加载并回放
-            <i class="w-3 h-3">
-              <svg viewBox="0 0 24 24" fill="currentColor" class="w-3 h-3 block">
-                <polygon points="5 3 19 12 5 21 5 3"/>
-              </svg>
-            </i>
-          </div>
-        </div>
-      </div>
-    </div>
+      <table v-else class="table">
+        <thead><tr><th>视频</th><th class="num">编号</th><th>状态</th><th><span class="sr-only">操作</span></th></tr></thead>
+        <tbody>
+          <tr v-for="item in history" :key="item.id">
+            <td class="name"><IconMovie /><span :title="item.name">{{ item.name }}</span></td>
+            <td class="num tnum">{{ item.taskId || item.id }}</td>
+            <td><span class="tag" :class="statusClass(item)">{{ statusText(item) }}</span></td>
+            <td class="action"><button class="btn btn-sm" @click="emit('play-record', item)">打开<IconArrowRight /></button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
   </div>
 </template>
 
 <script setup>
-defineProps({
-  history: {
-    type: Array,
-    default: () => []
-  }
-})
-
-defineEmits(['play-record'])
+import { IconMovie, IconArrowRight } from '@tabler/icons-vue'
+defineProps({ history: { type: Array, default: () => [] } })
+const emit = defineEmits(['play-record'])
+function statusText(item) {
+  if (item.status === 'failed') return '旧检测失败 · 可重新分析'
+  if (item.status === 'processing') return '旧检测处理中'
+  return '已保存'
+}
+function statusClass(item) { return item.status === 'failed' ? 'tag-danger' : item.status === 'processing' ? 'tag-warn' : '' }
 </script>
 
 <style scoped>
+.records { height: 100%; overflow-y: auto; padding: 24px; }
+.page-head { max-width: 1120px; margin: 0 auto 16px; }
+h1 { font-size: var(--text-heading); font-weight: 600; letter-spacing: -0.01em; }
+.page-head .note { margin-top: 4px; }
+.panel { max-width: 1120px; margin: 0 auto; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
+th { height: 34px; padding: 0 14px; text-align: start; font-size: var(--text-caption); font-weight: 500; color: var(--ink-3); background: var(--surface-2); }
+td { height: 44px; padding: 0 14px; box-shadow: inset 0 1px 0 var(--line); }
+tr:hover td { background: var(--surface-2); }
+.num { text-align: end; width: 80px; }
+.name { display: flex; align-items: center; gap: 10px; height: 44px; min-width: 0; }
+.name .tabler-icon { color: var(--ink-3); }
+.name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 56ch; }
+.action { width: 1%; text-align: end; }
+.action .tabler-icon { --icon-size: 14px; }
+.empty { padding: 32px 20px; }
+.empty-title { font-weight: 500; margin-bottom: 4px; }
+@media (max-width: 640px) { .records { padding: 12px; } .num { display: none; } }
 </style>
