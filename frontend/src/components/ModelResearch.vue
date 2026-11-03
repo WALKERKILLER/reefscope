@@ -19,7 +19,8 @@
     </div>
     <div v-else-if="history && !history.reports.length" class="card empty">
       <p class="empty-title">这个模型还没有质量报告</p>
-      <p class="note">维护者可用 <code class="mono">python manage.py import_fish_training</code> 从受控本地目录导入 results.csv。页面不接受服务器路径。</p>
+      <p v-if="modelKind === 'coral'" class="note">维护者可用 <code class="mono">python manage.py import_coral_training</code> 从受控本地目录导入校验过的珊瑚训练日志包。页面不接受服务器路径。</p>
+      <p v-else class="note">维护者可用 <code class="mono">python manage.py import_fish_training</code> 从受控本地目录导入 results.csv。页面不接受服务器路径。</p>
     </div>
 
     <template v-if="report">
@@ -39,8 +40,8 @@
       </div>
 
       <section class="card" aria-labelledby="curves-title">
-        <header class="card-head"><h2 id="curves-title">训练曲线</h2><span class="note">来源 results.csv · {{ report.training_curves.length }} 个 epoch</span></header>
-        <TrainingCurves :rows="report.training_curves" :selection="report.checkpoint_selection" />
+        <header class="card-head"><h2 id="curves-title">训练曲线</h2><span class="note">来源 {{ reportKind === 'coral' ? 'history.json' : 'results.csv' }} · {{ report.training_curves.length }} 个 epoch</span></header>
+        <TrainingCurves :rows="report.training_curves" :selection="report.checkpoint_selection" :kind="reportKind" />
       </section>
 
       <section class="card" aria-labelledby="report-title">
@@ -75,20 +76,20 @@
     <section v-if="history && (history.training_runs.length || history.reports.length)" class="card" aria-labelledby="history-title">
       <header class="card-head"><h2 id="history-title">记录历史</h2><span class="note">训练 {{ history.training_runs.length }} · 独立评估 {{ history.evaluations.length }} · 报告 {{ history.reports.length }}</span></header>
       <table v-if="history.training_runs.length" class="table">
-        <thead><tr><th>训练记录</th><th>导入时间</th><th class="num">epoch</th><th class="num">最高 mAP50</th><th>缺失项</th></tr></thead>
+        <thead><tr><th>训练记录</th><th>导入时间</th><th class="num">epoch</th><th class="num">{{ modelKind === 'coral' ? '选定 epoch' : '最高 mAP50' }}</th><th>缺失项</th></tr></thead>
         <tbody>
           <tr v-for="run in history.training_runs" :key="run.id">
             <td><span class="mono">{{ shortId(run.id) }}</span><span v-if="run.id === report?.training_run_id" class="tag tag-accent">当前报告</span></td>
             <td class="tnum">{{ formatDateTime(run.created_at) }}</td>
             <td class="num tnum">{{ run.epochs }}</td>
-            <td class="num tnum">{{ run.selection.best_map50_epoch ?? 'N/A' }}</td>
+            <td class="num tnum">{{ (modelKind === 'coral' ? run.selection.best_epoch : run.selection.best_map50_epoch) ?? 'N/A' }}</td>
             <td class="codes"><span v-for="code in run.missing_inputs" :key="code" class="tag" :title="code">{{ MISSING_INPUTS[code] || code }}</span><span v-if="!run.missing_inputs.length" class="note">无</span></td>
           </tr>
         </tbody>
       </table>
       <div class="evaluations">
         <h3>独立评估</h3>
-        <p v-if="!history.evaluations.length" class="note">N/A：还没有冻结真值上的评估记录。mAP 与 IDF1 不从训练曲线推导。</p>
+        <p v-if="!history.evaluations.length" class="note">{{ modelKind === 'coral' ? 'N/A：还没有未查看过的冻结测试集评估。训练日志包中的回归复核写在报告第 2 章，不计为独立评估。' : 'N/A：还没有冻结真值上的评估记录。mAP 与 IDF1 不从训练曲线推导。' }}</p>
         <details v-for="evaluation in history.evaluations" :key="evaluation.id" class="evidence">
           <summary><span class="mono">{{ evaluation.protocol_id }}</span> · {{ evaluation.dataset_version }} · <span class="tnum">{{ formatDateTime(evaluation.created_at) }}</span></summary>
           <pre class="mono">{{ JSON.stringify(evaluation.metrics, null, 2) }}</pre>
@@ -115,7 +116,12 @@ const MISSING_INPUTS = {
   independent_evaluation: '独立评估',
   manual_identity_ground_truth: '人工 ID 真值',
   training_dataset_hash: '训练数据 hash',
-  numeric_training_curves: '数值训练曲线'
+  numeric_training_curves: '数值训练曲线',
+  validation_loss: '验证 loss',
+  per_step_training_loss: '逐 step 训练 loss',
+  raw_terminal_logs: '原始终端日志',
+  fresh_untouched_test: '未查看过的测试集',
+  local_bleached_ground_truth: '本地白化真值'
 }
 
 const models = shallowRef([]), modelId = ref(''), history = shallowRef(null), reportId = ref(''), report = shallowRef(null)
@@ -126,9 +132,22 @@ const cancelled = e => e?.code === 'ERR_CANCELED'
 const modelOptions = computed(() => models.value.map(m => ({ value: m.id, label: m.id, hint: `权重 ${shortId(m.sha256)}` })))
 const reportOptions = computed(() => (history.value?.reports || []).map((r, i) => ({ value: r.id, label: `${formatDateTime(r.created_at)} · ${shortId(r.id)}`, hint: [i === 0 && '最新', r.human_review_status === 'pending' ? '待审阅' : r.human_review_status].filter(Boolean).join(' · ') })))
 
+const modelKind = computed(() => models.value.find(m => m.id === modelId.value)?.kind || 'fish')
+const reportKind = computed(() => report.value?.model_kind || 'fish')
+const pct = v => v == null ? null : `${(v * 100).toFixed(2)}%`
+
 const kpis = computed(() => {
   const r = report.value
   if (!r) return []
+  if (reportKind.value === 'coral') {
+    const sel = r.checkpoint_selection || {}, val = r.coral?.validation || {}, recheck = r.coral?.local_recheck
+    return [
+      { title: '验证 未白化 IoU', value: pct(val.selected?.iou), sub: `epoch ${sel.best_epoch} · 阈值 ${sel.best_threshold} · 冻结基线 ${pct(val.baseline?.iou) ?? 'N/A'}` },
+      { title: '验证 未白化 F1', value: pct(val.selected?.f1), sub: `同一 epoch 与阈值 · 基线 ${pct(val.baseline?.f1) ?? 'N/A'}` },
+      { title: '本地回归复核 IoU', value: pct(recheck?.adapted?.iou), sub: recheck ? `基线 ${pct(recheck.baseline.iou)} · ${recheck.images} 张已查看测试图` : '没有回归复核' },
+      { title: '独立测试精度', value: r.evaluation_run_id ? '已关联' : null, sub: r.evaluation_run_id ? `评估 ${shortId(r.evaluation_run_id)}` : '缺少未查看过的冻结测试集' }
+    ]
+  }
   const sel = r.checkpoint_selection || {}, rows = new Map(r.training_curves.map(row => [row.epoch, row]))
   const at = (epoch, key) => epoch == null ? null : rows.get(epoch)?.[key] ?? null
   const fixed = v => v == null ? null : Number(v).toFixed(3)
