@@ -88,8 +88,9 @@
               @time-update="(t) => currentTime = t"
               @update:playback-mode="playbackMode = $event"
             />
-            <div v-if="analysisState?.overview && workspaceMode === 'video'" class="timeline-card">
-              <TrackTimeline :spans="analysisState.overview.spans" :frames="analysisState.overview.frames" :duration="analysisState.duration" :current-time="currentTime" :window="analysisState.window" @seek="handleTimelineClick" />
+            <div v-if="(analysisState?.overview || coralState?.frames.length) && workspaceMode === 'video'" class="timeline-card">
+              <TrackTimeline v-if="analysisState?.overview" :spans="analysisState.overview.spans" :frames="analysisState.overview.frames" :duration="analysisState.duration" :current-time="currentTime" :window="analysisState.window" @seek="handleTimelineClick" />
+              <CoralTimeline v-if="coralState?.frames.length" :frames="coralState.frames" :interval-ms="coralState.intervalMs" :duration="coralState.duration" :current-time="currentTime" @seek="handleTimelineClick" />
             </div>
           </div>
 
@@ -142,6 +143,7 @@ import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
 import CoralAnalysisPanel from './components/CoralAnalysisPanel.vue'
 import UiSegmented from './components/ui/UiSegmented.vue'
 import TrackTimeline from './components/TrackTimeline.vue'
+import CoralTimeline from './components/CoralTimeline.vue'
 import RecordsView from './components/RecordsView.vue'
 import UiTooltip from './components/ui/UiTooltip.vue'
 import UiToaster from './components/ui/UiToaster.vue'
@@ -641,7 +643,7 @@ onBeforeUnmount(() => {
 }
 .layout.wall .area-center { gap: 10px; }
 .layout.wall .timeline-card { border-radius: var(--radius); }
-@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.stage) { height: 96px; } }
+@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.timeline .stage) { height: 96px; } }
 .area-left { grid-area: left; min-height: 0; min-width: 0; }
 .app.immersive { grid-template-rows: 0 1fr 0; }
 .app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
@@ -658,7 +660,7 @@ onBeforeUnmount(() => {
 .handle-right { grid-area: hr; }
 .handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 3px; height: 28px; translate: -50% -50%; border-radius: 2px; background: var(--line-strong); opacity: 0; transition: opacity 120ms var(--ease); }
 .handle:hover::after, .handle:active::after { opacity: 1; }
-.timeline-card { flex: none; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.timeline-card { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
 .inspector-empty { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
 .inspector-empty h2 { font-size: var(--text-title); font-weight: 600; }
 .steps { display: flex; flex-direction: column; gap: 14px; }

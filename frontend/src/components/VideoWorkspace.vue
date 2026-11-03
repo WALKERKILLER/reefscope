@@ -51,12 +51,38 @@
             @click="pickRoiPoint"
             class="overlay-canvas"
           />
+          <!-- Mounted into the player with the canvas, so it shares its box in fullscreen. -->
+          <div ref="coralUiRef" class="coral-ui">
+            <template v-if="compareBox">
+              <span class="compare-tag" :style="{ top: `${compareBox.top + 10}px`, left: `${compareBox.x - 8}px`, translate: '-100% 0' }">掩膜</span>
+              <span class="compare-tag" :style="{ top: `${compareBox.top + 10}px`, left: `${compareBox.x + 8}px` }">原画面</span>
+              <div
+                class="compare"
+                role="slider"
+                tabindex="0"
+                aria-label="掩膜对比分隔线"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :aria-valuenow="Math.round(split * 100)"
+                :aria-valuetext="`左侧 ${Math.round(split * 100)}% 显示掩膜`"
+                :style="{ left: `${compareBox.x}px`, top: `${compareBox.top}px`, height: `${compareBox.height}px` }"
+                @pointerdown.stop="startSplit"
+                @click.stop
+                @dblclick.stop
+                @keydown="onSplitKey"
+              ><span class="compare-knob"><IconArrowsHorizontal /></span></div>
+            </template>
+            <div v-if="hoverTip" class="mask-tip" :style="{ transform: `translate(${hoverTip.x + 14}px, ${hoverTip.y + 16}px)` }">
+              <span class="swatch" :style="{ background: hoverTip.color }" /><span>{{ hoverTip.label }}</span><span class="tnum faint">{{ hoverTip.px }}</span>
+            </div>
+          </div>
         </div>
         <template v-if="wall && (analysis || coral)">
           <div class="hud hud-time"><span class="hud-tag">回放</span><span class="tnum">{{ formatClock(displayTime) }} / {{ formatClock(videoDuration) }}</span><span class="sep" /><span class="tnum">帧 {{ frameNumber }}<template v-if="frameCount"> / {{ frameCount.toLocaleString('zh-CN') }}</template></span></div>
           <div class="hud hud-layers" role="group" aria-label="画面图层">
             <template v-if="analysis"><button v-for="(title, key) in layerNames" :key="key" type="button" :aria-pressed="analysis.layers[key]" @click="emit('layer', key, !analysis.layers[key])">{{ title }}</button></template>
             <button v-if="coral" type="button" :aria-pressed="coral.layers.mask" @click="emit('coral-layer', 'mask', !coral.layers.mask)">珊瑚</button>
+            <button v-if="coral?.layers.mask" type="button" :aria-pressed="coral.layers.compare" @click="emit('coral-layer', 'compare', !coral.layers.compare)">对比</button>
           </div>
         </template>
         <div v-if="analysis?.layers.roiEditing" class="hud hud-top"><IconPointer />在画面上点选 ROI 顶点，至少 3 个，完成后到“统计”应用</div>
@@ -66,9 +92,9 @@
           <span class="sep" />
           <span>画面相对占据度，非海底地理坐标</span>
         </div>
-        <div v-if="coral?.layers.mask && coral.frames.length" class="hud hud-legend" :class="{ stacked: analysis?.layers.heatmap && analysis?.heatmap }" role="status">
+        <div v-if="coral?.layers.mask && coral.frames.length" class="hud hud-legend" :class="{ stacked: analysis?.layers.heatmap && analysis?.heatmap }">
           <template v-if="coralHud">
-            <span v-for="item in coralLegend" :key="item.label" class="key"><span class="swatch" :style="{ background: item.color }" />{{ item.label }}</span>
+            <span v-for="item in coralLegend" :key="item.label" class="key"><span class="swatch" :style="{ background: item.color }" />{{ item.label }}<span class="tnum">{{ item.share }}</span></span>
             <span v-if="coralLegend.length" class="sep" />
             <span class="tnum">掩膜 {{ (coralHud.ms / 1000).toFixed(1) }} s</span>
             <template v-if="coralHud.state !== 'ready'"><span class="sep" /><span>{{ coralHud.state === 'failed' ? '这一帧的掩膜读取失败' : '正在载入掩膜…' }}</span></template>
@@ -82,8 +108,8 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
-import { IconMovie, IconX, IconUpload, IconPointer } from '@tabler/icons-vue'
+import { computed, ref, shallowRef, watch, onUnmounted, nextTick } from 'vue'
+import { IconMovie, IconX, IconUpload, IconPointer, IconArrowsHorizontal } from '@tabler/icons-vue'
 import UiSegmented from './ui/UiSegmented.vue'
 import UiTooltip from './ui/UiTooltip.vue'
 import { trackColor, inferno, CORAL_CLASSES, coralCss } from '../lib/palette'
@@ -699,8 +725,18 @@ function getPlaybackSurfaceElement() {
 function ensureCanvasMount() {
   const canvas = canvasRef.value
   const host = art?.template?.$layer || getPlaybackSurfaceElement()
-  if (!canvas || !host || canvas.parentElement === host) return
-  host.appendChild(canvas)
+  if (!canvas || !host) return
+  if (canvas.parentElement !== host) host.appendChild(canvas)
+  // Above Artplayer's state mask (z 50) so the divider stays draggable while paused, below its controls (z 60).
+  const surface = getPlaybackSurfaceElement()
+  if (coralUiRef.value && surface && coralUiRef.value.parentElement !== surface) surface.appendChild(coralUiRef.value)
+  if (surface && hoverSurface !== surface) {
+    hoverSurface?.removeEventListener('pointermove', onSurfaceMove)
+    hoverSurface?.removeEventListener('pointerleave', onSurfaceLeave)
+    surface.addEventListener('pointermove', onSurfaceMove, { passive: true })
+    surface.addEventListener('pointerleave', onSurfaceLeave)
+    hoverSurface = surface
+  }
 }
 
 function computeDrawMetrics(video, surface) {
@@ -1021,17 +1057,62 @@ function renderAnalysisLayers(ctx, m, time) {
 
 // Coral masks sit below the fish layers. The latest sampled frame at or before the playhead is held
 // for one sampling interval; frames without background separation draw only the bleached class.
-let maskStore = null
-const coralHud = ref(null)
+let maskStore = null, coralSample = null, hoverSurface = null, pointer = null, hoverFrame = 0
+const coralHud = ref(null), coralUiRef = ref(null), coralGeom = shallowRef(null), hoverTip = ref(null), split = ref(0.5)
+const percent = value => `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`
 const coralLegend = computed(() => {
   const c = props.coral, hud = coralHud.value
   if (!c || !hud) return []
-  return [1, 2].filter(id => c.layers[CORAL_CLASSES[id].key] && (id === 2 || hud.separated)).map(id => ({ label: CORAL_CLASSES[id].label, color: coralCss(id) }))
+  return [1, 2].filter(id => c.layers[CORAL_CLASSES[id].key] && (id === 2 || hud.separated))
+    .map(id => ({ label: CORAL_CLASSES[id].label, color: coralCss(id), share: percent(hud.counts[id] / hud.area) }))
 })
+// Swipe comparison: the mask shows left of the divider, the original footage right of it.
+const compareBox = computed(() => {
+  const m = coralGeom.value, c = props.coral
+  if (!m || !c?.layers.mask || !c.layers.compare || !coralHud.value) return null
+  return { x: m.offsetX + m.drawWidth * split.value, top: m.offsetY, height: m.drawHeight }
+})
+watch(split, scheduleRedraw)
+function startSplit(event) {
+  const m = coralGeom.value, surface = getPlaybackSurfaceElement(), handle = event.currentTarget
+  if (!m || !surface) return
+  handle.setPointerCapture?.(event.pointerId)
+  const move = e => { const r = surface.getBoundingClientRect(); split.value = Math.min(1, Math.max(0, (e.clientX - r.left - m.offsetX) / m.drawWidth)) }
+  const up = () => { handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up) }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', up)
+  handle.addEventListener('pointercancel', up)
+}
+function onSplitKey(event) {
+  const next = { ArrowLeft: split.value - 0.05, ArrowRight: split.value + 0.05, Home: 0, End: 1 }[event.key]
+  if (next == null) return
+  event.preventDefault(); event.stopPropagation()
+  split.value = Math.min(1, Math.max(0, next))
+}
+
+// Hover readout of the class under the cursor, in source-frame pixels; hidden classes are still named.
+function onSurfaceMove(event) {
+  pointer = { x: event.clientX, y: event.clientY }
+  if (!hoverFrame) hoverFrame = requestAnimationFrame(updateHover)
+}
+function onSurfaceLeave() { pointer = null; hoverTip.value = null }
+function updateHover() {
+  hoverFrame = 0
+  const c = props.coral, m = lastDrawMetrics, surface = getPlaybackSurfaceElement(), sample = coralSample
+  if (!pointer || !c?.layers.mask || !m || !surface || !sample || !maskStore) { hoverTip.value = null; return }
+  const rect = surface.getBoundingClientRect(), x = pointer.x - rect.left, y = pointer.y - rect.top
+  const u = (x - m.offsetX) / m.drawWidth, v = (y - m.offsetY) / m.drawHeight
+  const id = c.layers.compare && u > split.value ? null : maskStore.classAt(sample.frame, u, v)
+  if (id == null) { hoverTip.value = null; return }
+  const label = id === 0 ? '背景' : id === 2 ? '白化' : sample.background_separated ? '未白化' : '未白化或背景 · 本帧未分离背景'
+  const hidden = id && !c.layers[CORAL_CLASSES[id].key]
+  hoverTip.value = { x, y, label: hidden ? `${label}（已隐藏）` : label, color: id ? coralCss(id) : 'transparent',
+                     px: `${Math.floor(u * sample.width)}, ${Math.floor(v * sample.height)} px` }
+}
 watch(() => props.coral?.runId, id => {
   maskStore?.close()
   maskStore = id ? createMaskStore(id, scheduleRedraw) : null
-  coralHud.value = null
+  coralHud.value = null; coralSample = null; hoverTip.value = null
   scheduleRedraw()
 }, { immediate: true })
 watch(() => props.coral && [props.coral.layers, props.coral.frames], scheduleRedraw)
@@ -1040,26 +1121,34 @@ function setCoralHud(next) {
   const current = coralHud.value
   if (current?.frame === next?.frame && current?.state === next?.state) return
   coralHud.value = next
+  if (pointer && !hoverFrame) hoverFrame = requestAnimationFrame(updateHover)
 }
 
 function renderCoralLayer(ctx, m, time) {
   const c = props.coral, frames = c.frames || []
   const index = c.layers.mask && maskStore ? sampleAt(frames, time * 1000) : -1
   const sample = index >= 0 && time * 1000 - frames[index].timestamp_ms < c.intervalMs ? frames[index] : null
+  coralSample = sample
+  if (coralGeom.value !== m) coralGeom.value = m
   if (!sample) { setCoralHud(null); return }
   if (frames[index + 1]) maskStore.prefetch(frames[index + 1].frame)
   const entry = maskStore.get(sample.frame)
   const state = entry ? 'ready' : maskStore.failed(sample.frame) ? 'failed' : 'loading'
-  setCoralHud({ frame: sample.frame, ms: sample.timestamp_ms, separated: sample.background_separated, state })
+  setCoralHud({ frame: sample.frame, ms: sample.timestamp_ms, separated: sample.background_separated, state,
+                counts: { 1: sample.pixel_counts['1'], 2: sample.pixel_counts['2'] }, area: sample.width * sample.height })
   if (!entry) return
   const colors = {}
   if (c.layers.nonBleached && sample.background_separated) colors[1] = CORAL_CLASSES[1].video
   if (c.layers.bleached) colors[2] = CORAL_CLASSES[2].video
   if (!colors[1] && !colors[2]) return
+  // Painted at device size (capped for 4K walls) so outlines stay one crisp line at any zoom.
+  const dpr = window.devicePixelRatio || 1, scale = Math.min(dpr, 2560 / m.drawWidth)
+  const surface = maskStore.paint(sample.frame, entry, { colors, mode: c.layers.mode, opacity: c.layers.opacity,
+    width: Math.max(1, Math.round(m.drawWidth * scale)), height: Math.max(1, Math.round(m.drawHeight * scale)), line: Math.max(2, Math.round(1.5 * scale)) })
   ctx.save()
-  ctx.globalAlpha = c.layers.opacity
+  if (c.layers.compare) { ctx.beginPath(); ctx.rect(m.offsetX, m.offsetY, m.drawWidth * split.value, m.drawHeight); ctx.clip() }
   ctx.imageSmoothingEnabled = false
-  ctx.drawImage(maskStore.paint(sample.frame, entry, colors), m.offsetX, m.offsetY, m.drawWidth, m.drawHeight)
+  ctx.drawImage(surface, m.offsetX, m.offsetY, m.drawWidth, m.drawHeight)
   ctx.restore()
 }
 
@@ -1241,6 +1330,9 @@ watch(() => props.logs, () => {
 onUnmounted(() => {
   unmounted = true
   maskStore?.close()
+  cancelAnimationFrame(hoverFrame)
+  hoverSurface?.removeEventListener('pointermove', onSurfaceMove)
+  hoverSurface?.removeEventListener('pointerleave', onSurfaceLeave)
   teardownPlaybackSurface()
   destroyArtPlayer()
 })
@@ -1281,6 +1373,19 @@ onUnmounted(() => {
 .hud .key { display: inline-flex; align-items: center; gap: 5px; }
 .hud .swatch { width: 9px; height: 9px; border-radius: 2px; box-shadow: 0 0 0 1px oklch(0 0 0 / 0.4); }
 .hud-warn { color: #eabf70; }
+.hud .key .tnum { margin-inline-start: 2px; color: oklch(0.95 0.01 205 / 0.7); }
+.coral-ui { position: absolute; inset: 0; z-index: 55; pointer-events: none; }
+.compare { position: absolute; width: 24px; margin-inline-start: -12px; cursor: ew-resize; pointer-events: auto; touch-action: none; outline: none; }
+.compare::before { content: ""; position: absolute; top: 0; bottom: 0; left: 11px; width: 2px; background: oklch(1 0 0 / 0.92); box-shadow: 0 0 0 1px oklch(0 0 0 / 0.35); }
+/* Knob above centre: the paused play icon owns the middle of the frame. */
+.compare-knob { position: absolute; top: 32%; left: 50%; display: grid; place-items: center; width: 30px; height: 30px; translate: -50% -50%; border-radius: 50%; color: oklch(0.2 0.03 230); background: oklch(1 0 0 / 0.95); box-shadow: 0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px oklch(0 0 0 / 0.25); transition: scale 120ms var(--ease); }
+.compare-knob .tabler-icon { --icon-size: 16px; }
+.compare:hover .compare-knob, .compare:active .compare-knob { scale: 1.08; }
+.compare:focus-visible .compare-knob { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px oklch(0 0 0 / 0.25); }
+.compare-tag { position: absolute; padding: 2px 7px; border-radius: 4px; font-size: var(--text-caption); font-weight: 500; color: oklch(0.95 0.01 205); background: oklch(0.15 0.02 240 / 0.78); backdrop-filter: blur(6px); white-space: nowrap; }
+.mask-tip { position: absolute; top: 0; left: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--radius-sm); font-size: var(--text-caption); color: oklch(0.95 0.01 205); background: oklch(0.15 0.02 240 / 0.86); box-shadow: 0 2px 8px oklch(0 0 0 / 0.3); white-space: nowrap; will-change: transform; }
+.mask-tip .swatch { box-shadow: 0 0 0 1px oklch(1 0 0 / 0.35); }
+.mask-tip .faint { color: oklch(0.95 0.01 205 / 0.6); }
 .hud-time { top: 10px; left: 10px; font-size: var(--text-small); }
 .hud-tag { padding: 0 5px; border-radius: 3px; font-size: 10.5px; font-weight: 600; color: oklch(0.2 0.04 220); background: #61c7c2; }
 .hud-layers { top: 10px; right: 10px; gap: 2px; padding: 3px; pointer-events: auto; }

@@ -62,14 +62,24 @@
         <div class="pane">
           <div class="layer">
             <UiSwitch id="coral-mask" v-model="layers.mask" :disabled="!frames.length" />
-            <label for="coral-mask"><strong>珊瑚掩膜</strong><span class="note">显示最近一个采样帧的分割，最多沿用一个采样间隔</span></label>
+            <label for="coral-mask"><strong>珊瑚掩膜</strong><span class="note">播放头之前最近的采样帧，最多沿用一个采样间隔</span></label>
           </div>
-          <div v-if="layers.mask" class="layer-extra classes">
-            <div v-for="(cls, id) in CORAL_CLASSES" :key="id" class="layer">
-              <UiSwitch :id="`coral-class-${id}`" v-model="layers[cls.key]" />
-              <label :for="`coral-class-${id}`"><strong><span class="swatch" :style="{ background: coralCss(id) }" />{{ cls.label }}</strong><span class="note">{{ id === '1' ? '只在已分离背景的帧上显示' : '所有采样帧都显示' }}</span></label>
+          <div v-if="layers.mask" class="layer-extra display">
+            <div class="field"><span>显示方式</span><UiSegmented v-model="layers.mode" :options="modeOptions" block aria-label="掩膜显示方式" /></div>
+            <div class="field">
+              <span>类别 · 当前采样帧占比</span>
+              <div class="class-chips" role="group" aria-label="掩膜类别">
+                <button v-for="chip in classChips" :key="chip.id" type="button" class="class-chip" :aria-pressed="layers[chip.key]" :title="layers[chip.key] ? `隐藏${chip.label}` : `显示${chip.label}`" @click="layers[chip.key] = !layers[chip.key]">
+                  <span class="chip-swatch" :style="chip.swatch" /><span>{{ chip.label }}</span><span class="tnum chip-share">{{ chip.share }}</span>
+                </button>
+              </div>
+              <p v-if="current && !current.background_separated" class="note warn-text">本帧未分离背景，未白化不绘制。</p>
             </div>
-            <div class="field"><span>不透明度 · <span class="tnum">{{ Math.round(layers.opacity * 100) }}%</span></span><UiSlider v-model="layers.opacity" :min="0.1" :max="1" :step="0.05" aria-label="掩膜不透明度" /></div>
+            <div v-if="layers.mode !== 'outline'" class="field"><span>填充不透明度 · <span class="tnum">{{ Math.round(layers.opacity * 100) }}%</span></span><UiSlider v-model="layers.opacity" :min="0.1" :max="1" :step="0.05" aria-label="掩膜填充不透明度" /></div>
+            <div class="layer">
+              <UiSwitch id="coral-compare" v-model="layers.compare" />
+              <label for="coral-compare"><strong>对比原画面</strong><span class="note">拖动画面上的分隔线，左侧为掩膜，右侧为原画面</span></label>
+            </div>
           </div>
           <p v-if="maskWarning" class="note warn-text">{{ maskWarning }}</p>
 
@@ -80,11 +90,10 @@
                 <div><dt>时间</dt><dd class="tnum">{{ (current.timestamp_ms / 1000).toFixed(2) }} s · 帧 {{ current.frame + 1 }}</dd></div>
                 <div><dt>背景分离</dt><dd :class="{ 'warn-text': !current.background_separated }">{{ current.background_separated ? '已分离' : '未分离，背景计入未白化' }}</dd></div>
               </dl>
-              <div v-for="row in currentRows" :key="row.label" class="bar-row">
-                <span class="truncate">{{ row.label }}</span>
-                <span class="bar"><span :style="{ width: `${row.share * 100}%`, background: row.color }" /></span>
-                <span class="tnum">{{ row.share == null ? 'N/A' : `${(row.share * 100).toFixed(1)}%` }}</span>
+              <div class="composition" role="img" :aria-label="compositionText">
+                <span v-for="part in composition.filter(item => item.share > 0)" :key="part.label" :class="part.kind" :style="{ flexGrow: part.share, background: part.color }" />
               </div>
+              <p class="note tnum composition-key">{{ compositionText }}</p>
               <div class="row">
                 <button class="btn btn-sm" :disabled="currentIndex <= 0" @click="step(-1)"><IconChevronLeft />上一采样帧</button>
                 <button class="btn btn-sm" :disabled="currentIndex >= frames.length - 1" @click="step(1)">下一采样帧<IconChevronRight /></button>
@@ -196,13 +205,13 @@ import { IconRefresh, IconAlertTriangle, IconPlus, IconDownload, IconCopy, IconF
 import UiSelect from './ui/UiSelect.vue'
 import UiSwitch from './ui/UiSwitch.vue'
 import UiSlider from './ui/UiSlider.vue'
+import UiSegmented from './ui/UiSegmented.vue'
 import UiTabs from './ui/UiTabs.vue'
 import UiTooltip from './ui/UiTooltip.vue'
 import CoralSeriesFigure from './CoralSeriesFigure.vue'
 import { CORAL_CLASSES, coralCss } from '../lib/palette'
 import { sampleAt } from '../lib/coralMasks'
 import { MISSING_REASONS, formatDateTime } from '../lib/format'
-import { isDark } from '../lib/theme'
 
 const props = defineProps({ taskId: Number, currentTime: { type: Number, default: 0 }, fileName: String })
 const emit = defineEmits(['coral', 'seek', 'toast'])
@@ -211,7 +220,8 @@ const models = ref([]), runs = ref([]), modelId = ref(''), selectedId = ref(''),
 const frames = shallowRef([]), summary = shallowRef(null)
 const busy = ref(false), error = ref(''), message = ref(''), statsLoading = ref(false), maskWarning = ref('')
 const interval = ref(2), motion = ref('unknown'), filterStart = ref(0), filterEnd = ref('')
-const layers = reactive({ mask: true, nonBleached: true, bleached: true, opacity: 0.45 })
+const layers = reactive({ mask: true, nonBleached: true, bleached: true, opacity: 0.4, mode: 'both', compare: false })
+const modeOptions = [{ value: 'both', label: '填充+轮廓' }, { value: 'fill', label: '填充' }, { value: 'outline', label: '轮廓' }]
 const applied = ref({ start_ms: 0 })
 const createOpen = ref(false), tab = ref('layers')
 
@@ -235,17 +245,28 @@ const evidence = computed(() => meta.value?.delivery_evidence || null)
 const duration = computed(() => run.value?.summary?.frame_count && run.value?.summary?.fps ? run.value.summary.frame_count / run.value.summary.fps : null)
 const currentIndex = computed(() => sampleAt(frames.value, props.currentTime * 1000))
 const current = computed(() => frames.value[currentIndex.value] || null)
-const stroke = id => isDark.value ? CORAL_CLASSES[id].ink : CORAL_CLASSES[id].paper
-const currentRows = computed(() => {
+const pct = value => value == null ? '—' : `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`
+// Chips double as the legend: the swatch mirrors the display mode, the share is of the current frame's pixels.
+const classChips = computed(() => {
+  const p = current.value, area = p ? p.width * p.height : 0
+  return [1, 2].map(id => {
+    const cls = CORAL_CLASSES[id], on = layers[cls.key]
+    const share = p && (id === 2 || p.background_separated) ? p.pixel_counts[id] / area : null
+    const fill = layers.mode === 'outline' ? 0 : layers.mode === 'fill' ? 0.85 : 0.4
+    return { id, key: cls.key, label: cls.label, share: p ? pct(share) : '',
+             swatch: on ? { background: coralCss(id, fill), boxShadow: layers.mode === 'fill' ? 'none' : `inset 0 0 0 2px ${coralCss(id)}` } : {} }
+  })
+})
+// One stacked bar per sampled frame; without background separation class 1 also holds background.
+const composition = computed(() => {
   const p = current.value
   if (!p) return []
-  const area = p.width * p.height, counts = p.pixel_counts
-  return [
-    { label: '珊瑚', share: p.background_separated ? (counts['1'] + counts['2']) / area : null, color: 'var(--ink-3)' },
-    { label: '未白化', share: p.background_separated ? counts['1'] / area : null, color: stroke(1) },
-    { label: '白化', share: counts['2'] / area, color: stroke(2) }
-  ]
+  const area = p.width * p.height, c = p.pixel_counts
+  return p.background_separated
+    ? [{ label: '未白化', share: c['1'] / area, color: coralCss(1) }, { label: '白化', share: c['2'] / area, color: coralCss(2) }, { label: '背景', share: c['0'] / area, kind: 'rest' }]
+    : [{ label: '白化', share: c['2'] / area, color: coralCss(2) }, { label: '未白化或背景', share: c['1'] / area, kind: 'mixed' }]
 })
+const compositionText = computed(() => composition.value.map(part => `${part.label} ${pct(part.share)}`).join(' · '))
 const evidenceRows = computed(() => {
   const domains = evidence.value?.domains || {}, names = { local: '本地', official: 'Coralscapes' }
   const iou = v => v == null ? 'N/A' : v.toFixed(3)
@@ -514,10 +535,21 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .layer label { display: flex; flex-direction: column; gap: 1px; cursor: pointer; }
 .layer strong { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .layer-extra { margin: -2px 0 6px 38px; }
-.classes { display: flex; flex-direction: column; }
-.classes .layer { padding: 4px 0; }
-.classes .field { margin-top: 6px; }
-.swatch { flex: none; width: 10px; height: 10px; border-radius: 2px; box-shadow: inset 0 0 0 1px oklch(0 0 0 / 0.15); }
+.display { display: flex; flex-direction: column; gap: 14px; margin-top: 2px; margin-bottom: 10px; }
+.display .layer { padding: 0; }
+.class-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.class-chip { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius); font: inherit; font-size: var(--text-small); color: var(--ink); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); cursor: pointer; transition-property: background-color, box-shadow, color, scale; transition-duration: 120ms; transition-timing-function: var(--ease); }
+.class-chip:hover { background: var(--surface-3); }
+.class-chip:active { scale: 0.96; }
+.class-chip[aria-pressed=false] { color: var(--ink-3); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.class-chip[aria-pressed=false] .chip-share { text-decoration: line-through; }
+.chip-swatch { flex: none; width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.chip-share { margin-inline-start: auto; color: var(--ink-2); }
+.composition { display: flex; gap: 2px; height: 10px; border-radius: 3px; overflow: hidden; }
+.composition > span { min-width: 0; }
+.composition .rest { background: var(--surface-3); }
+.composition .mixed { background: repeating-linear-gradient(135deg, var(--surface-3) 0 4px, color-mix(in oklch, var(--ink-3) 35%, var(--surface-3)) 4px 6px); }
+.composition-key { margin-top: -2px; font-size: var(--text-caption); }
 .warn-text { color: var(--warn); }
 .block { display: flex; flex-direction: column; gap: 8px; padding-top: 16px; }
 .block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -535,10 +567,6 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .na-list div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: baseline; font-size: var(--text-small); }
 .na-list dt { color: var(--ink-2); }
 .na-list dd { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
-.bar-row { display: grid; grid-template-columns: minmax(0, 52px) 1fr 52px; gap: 10px; align-items: center; font-size: var(--text-small); }
-.bar-row .tnum { text-align: end; }
-.bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
-.bar > span { display: block; height: 100%; border-radius: 3px; }
 .exports { display: flex; flex-wrap: wrap; gap: 6px; }
 .provenance { display: flex; flex-direction: column; gap: 10px; }
 .provenance dd { display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; font-size: var(--text-small); overflow-wrap: anywhere; }
