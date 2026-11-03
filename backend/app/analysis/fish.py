@@ -11,6 +11,7 @@ from pathlib import Path
 from time import monotonic
 
 from .storage import file_hash, input_video, write_json
+from .video import FrameClock, open_video
 
 
 @lru_cache(maxsize=1)
@@ -40,17 +41,9 @@ def analyze(run, output, progress):
     config = run.config_snapshot["settings"]
     source = input_video(run.task)
     source_hash = file_hash(source)
-    cap = cv2.VideoCapture(str(source))
-    if not cap.isOpened():
-        raise ValueError("video_decode_failed")
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    if width <= 0 or height <= 0:
-        cap.release()
-        raise ValueError("invalid_video_dimensions")
-    previous_ms = -1
-    frame_index, observations, fallbacks = 0, 0, 0
+    cap, fps, total, width, height = open_video(source)
+    clock = FrameClock(fps)
+    frame_index, observations = 0, 0
     started = monotonic()
     track_ids = set()
     cuts = set(config["scene_cut_frames"])
@@ -61,17 +54,7 @@ def analyze(run, output, progress):
                 ok, frame = cap.read()
                 if not ok:
                     break
-                timestamp = cap.get(cv2.CAP_PROP_POS_MSEC)
-                if not math.isfinite(timestamp) or timestamp < 0 or (frame_index and timestamp <= previous_ms):
-                    if timestamp > 0 and timestamp < previous_ms:
-                        raise ValueError("video_time_reversed")
-                    if not math.isfinite(fps) or fps <= 0:
-                        raise ValueError("video_time_unavailable")
-                    timestamp = frame_index * 1000 / fps
-                    fallbacks += 1
-                if timestamp <= previous_ms:
-                    raise ValueError("video_time_invalid")
-                previous_ms = timestamp
+                timestamp = clock.stamp(frame_index, cap.get(cv2.CAP_PROP_POS_MSEC))
                 if frame_index in cuts:
                     reset_trackers(model)
                     segment_id += 1
@@ -110,7 +93,7 @@ def analyze(run, output, progress):
         elapsed = monotonic() - started
         summary = {"schema": "fish-summary/v1", "frame_count": frame_index, "width": width, "height": height,
                    "fps": fps if math.isfinite(fps) and fps > 0 else None,
-                   "observations": observations, "track_count": len(track_ids), "timestamp_fallback_frames": fallbacks,
+                   "observations": observations, "track_count": len(track_ids), "timestamp_fallback_frames": clock.fallbacks,
                    "device": device, "elapsed_seconds": elapsed, "processed_fps": frame_index / elapsed,
                    "camera_motion": config["camera_motion"], "model_id": run.model_id,
                    "limitations": ["Track IDs are not unique biological individuals", "Image-plane coordinates only", "No independent ground truth evaluation", "Undeclared scene cuts are not automatically detected"]}

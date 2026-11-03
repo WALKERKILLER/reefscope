@@ -2,3 +2,5 @@
 *.png binary
 *.jpg binary
 *.drawio text
+# Vendored delivery code stays byte-identical to its recorded SHA-256 (CRLF included).
+backend/app/analysis/vendor/coral_model.py -text whitespace=cr-at-eol

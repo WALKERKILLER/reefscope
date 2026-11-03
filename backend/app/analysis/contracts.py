@@ -1,4 +1,4 @@
-"""Validated fish Run settings; public APIs never accept model paths."""
+"""Validated Run settings per kind; public APIs never accept model paths."""
 import math
 
 DEFAULTS = {
@@ -31,3 +31,21 @@ def validate_settings(value):
     if not isinstance(cuts, list) or len(cuts) > 10000 or any(type(v) is not int or v < 1 for v in cuts) or cuts != sorted(set(cuts)):
         raise ValueError("invalid_scene_cuts")
     return result
+
+
+CORAL_DEFAULTS = {"sample_every_seconds": 2, "camera_motion": "unknown"}
+
+
+def validate_coral_settings(value):
+    if not isinstance(value, dict) or set(value) - set(CORAL_DEFAULTS):
+        raise ValueError("invalid_settings")
+    result = CORAL_DEFAULTS | value
+    interval = result["sample_every_seconds"]
+    if type(interval) not in (int, float) or not math.isfinite(interval) or not 0.5 <= interval <= 60:
+        raise ValueError("invalid_sample_interval")
+    if result["camera_motion"] not in ("fixed", "moving", "unknown"):
+        raise ValueError("invalid_camera_motion")
+    return result
+
+
+SETTINGS = {"fish": validate_settings, "coral": validate_coral_settings}

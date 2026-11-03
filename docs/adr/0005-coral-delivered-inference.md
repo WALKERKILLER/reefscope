@@ -41,4 +41,4 @@ Class: architecture
 - [CoralscapesV2: Panoptic and Fine-Grained Visual Scene Understanding in Coral Reefs](https://arxiv.org/abs/2609.12826)，上游模型的训练数据集；首版数据集见 [arXiv:2503.20000](https://arxiv.org/abs/2503.20000)。
 - [safetensors 格式说明](https://huggingface.co/docs/safetensors/index)：文件头为 JSON，注册时无需反序列化 pickle 即可校验。
 - [Transformers SegFormer 文档](https://huggingface.co/docs/transformers/model_doc/segformer)。
-- [珊瑚白化分析契约](../specs/draft-coral-bleaching-analysis.md)。
+- [珊瑚白化分析契约](../specs/draft-coral-bleaching-analysis.md)、[珊瑚分析开发说明](../developers/coral-analysis.md)。
