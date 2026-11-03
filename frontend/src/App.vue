@@ -45,10 +45,10 @@
           <div v-show="activeView === 'console'" class="handle handle-left" role="separator" aria-orientation="vertical" aria-label="调整视频库宽度" @pointerdown="startResize('left', $event)" />
 
           <div v-if="activeView === 'monitor'" class="area-head">
-            <MonitorView :analysis="analysisState" :file-name="fileName" :current-time="currentTime" />
+            <MonitorView :analysis="analysisState" :coral="coralState" :file-name="fileName" :current-time="currentTime" />
           </div>
           <div v-if="activeView === 'monitor'" class="area-left">
-            <WallInsights :analysis="analysisState" :current-time="currentTime" @seek="handleTimelineClick" />
+            <WallInsights :analysis="analysisState" :coral="coralState" :current-time="currentTime" @seek="handleTimelineClick" />
           </div>
 
           <div class="area-center">
@@ -73,13 +73,15 @@
               :progress="progress"
               :logs="logs"
               :video-url="videoUrl"
-              :result-video-url="analysisState ? null : resultVideoUrl"
-              :playback-mode="analysisState ? 'overlay' : playbackMode"
+              :result-video-url="analysisState || coralState ? null : resultVideoUrl"
+              :playback-mode="analysisState || coralState ? 'overlay' : playbackMode"
               :boxes="boxes"
               :analysis="analysisState"
+              :coral="coralState"
               :current-time="currentTime"
               :wall="activeView === 'monitor'"
               @layer="(key, value) => analysisPanelRef?.setLayer(key, value)"
+              @coral-layer="(key, value) => coralPanelRef?.setLayer(key, value)"
               @roi-point="point => analysisPanelRef?.addRoiPoint(point)"
               @file-drop="handleFileDrop"
               @close="handleCloseWorkspace"
@@ -93,19 +95,24 @@
 
           <div v-show="activeView === 'console'" class="handle handle-right" role="separator" aria-orientation="vertical" aria-label="调整分析面板宽度" @pointerdown="startResize('right', $event)" />
           <div v-show="activeView === 'console'" class="area-inspector">
-            <FishAnalysisPanel v-if="currentTaskId && workspaceMode === 'video'" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
+            <template v-if="currentTaskId && workspaceMode === 'video'">
+              <div class="inspector-switch"><UiSegmented v-model="inspectorKind" :options="inspectorOptions" block aria-label="分析类型" /></div>
+              <!-- Both panels stay mounted so the video keeps fish and coral layers while either is in view. -->
+              <FishAnalysisPanel v-show="inspectorKind === 'fish'" class="panel" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
+              <CoralAnalysisPanel v-show="inspectorKind === 'coral'" class="panel" ref="coralPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" @coral="coralState = $event" @seek="handleTimelineClick" @toast="toast" />
+            </template>
             <aside v-else class="inspector-empty" aria-label="分析">
-              <h2>鱼类分析</h2>
+              <h2>鱼类与珊瑚分析</h2>
               <ol class="steps">
                 <li><span class="num">1</span><div><strong>打开视频</strong><p class="note">从视频库选择，或上传 MP4。</p></div></li>
-                <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">选择注册模型，由独立 Worker 逐帧追踪。</p></div></li>
-                <li><span class="num">3</span><div><strong>查看证据</strong><p class="note">叠加框、尾迹与热图，按时间窗和 ROI 统计并导出。</p></div></li>
+                <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">鱼类逐帧追踪；珊瑚按采样间隔分割白化状态。各由独立 Worker 执行。</p></div></li>
+                <li><span class="num">3</span><div><strong>查看证据</strong><p class="note">叠加框、尾迹、热图与珊瑚掩膜，按时间窗统计并导出。</p></div></li>
               </ol>
             </aside>
           </div>
 
           <div v-if="activeView === 'monitor'" class="area-side">
-            <WallEvidence :analysis="analysisState" @open-workspace="activeView = 'console'" />
+            <WallEvidence :analysis="analysisState" :coral="coralState" @open-workspace="activeView = 'console'" />
           </div>
         </div>
 
@@ -132,6 +139,8 @@ import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, b
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
 import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
+import CoralAnalysisPanel from './components/CoralAnalysisPanel.vue'
+import UiSegmented from './components/ui/UiSegmented.vue'
 import TrackTimeline from './components/TrackTimeline.vue'
 import RecordsView from './components/RecordsView.vue'
 import UiTooltip from './components/ui/UiTooltip.vue'
@@ -158,6 +167,10 @@ const LEFT_MIN = 220, LEFT_MAX = 400, RIGHT_MIN = 300, RIGHT_MAX = 520, CENTER_M
 // --- State ---
 const analysisState = shallowRef(null)
 const analysisPanelRef = ref(null)
+const coralState = shallowRef(null)
+const coralPanelRef = ref(null)
+const inspectorKind = ref('fish')
+const inspectorOptions = [{ value: 'fish', label: '鱼类' }, { value: 'coral', label: '珊瑚' }]
 const history = ref([])
 const status = ref('idle') // 'idle' | 'processing' | 'playing'
 const progress = ref(0)
@@ -336,6 +349,7 @@ async function handleFileDrop(file) {
   uploadAbort = new AbortController()
   currentTaskId.value = null
   analysisState.value = null
+  coralState.value = null
   status.value = 'processing'
   progress.value = 0
   logs.value = [`正在上传 ${file.name}（${fileSizeMB} MB）`, '等待本地后端保存视频…']
@@ -369,6 +383,7 @@ function handleCloseWorkspace() {
   resultVideoUrl.value = null
   playbackMode.value = 'overlay'
   analysisState.value = null
+  coralState.value = null
   boxes.value = []
   logs.value = []
   progress.value = 0
@@ -410,9 +425,11 @@ function getHistoryItemById(id) {
 
 async function queueNewAnalysis(taskId) {
   const [taskResponse, historyResponse, modelsResponse] = await Promise.all([getTask(taskId), listAnalysisRuns(taskId), listAnalysisModels()])
-  const previous = historyResponse.data.items[0]
-  const model = modelsResponse.data.items.find(item => item.id === previous?.config_snapshot.models.fish) || modelsResponse.data.items[0]
-  if (!model) throw new Error('还没有注册模型。先在后端注册授权权重')
+  // Rerun repeats fish tracking only; coral Runs are created from the coral panel.
+  const previous = historyResponse.data.items.find(item => item.kind === 'fish')
+  const fishModels = modelsResponse.data.items.filter(item => item.kind === 'fish')
+  const model = fishModels.find(item => item.id === previous?.config_snapshot.models.fish) || fishModels[0]
+  if (!model) throw new Error('还没有注册鱼类模型。先在后端注册授权权重')
   await createAnalysisRun(taskId, { kind: 'fish', models: { fish: model.id }, settings: previous?.config_snapshot.settings || {} })
   return taskResponse.data
 }
@@ -455,7 +472,7 @@ async function handleSingleFileAction({ action, item }) {
       const wasCurrent = currentTaskId.value === taskId
       applyTaskPlayback(task, '[RERUN]')
       if (wasCurrent) analysisPanelRef.value?.refresh()
-      showToast('分析已排队', '沿用上次的模型与参数。旧结果保留，可在分析记录中切换。')
+      showToast('鱼类分析已排队', '沿用上次的鱼类模型与参数。旧结果保留，可在分析记录中切换。')
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '操作失败'
@@ -629,7 +646,9 @@ onBeforeUnmount(() => {
 .app.immersive { grid-template-rows: 0 1fr 0; }
 .app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
 .area-library { grid-area: library; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
-.area-inspector { grid-area: inspector; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.area-inspector { grid-area: inspector; display: flex; flex-direction: column; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.inspector-switch { flex: none; padding: 10px 16px 0; }
+.panel { flex: 1 1 0; min-height: 0; }
 .area-head { grid-area: head; min-width: 0; }
 .area-center { grid-area: center; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
 .area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; }

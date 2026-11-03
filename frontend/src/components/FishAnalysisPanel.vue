@@ -193,7 +193,7 @@
             <ul class="limits">
               <li>轨迹 ID 只在本次分析内有效；遮挡后重新出现会计为新 ID，不等于鱼类个体数。</li>
               <li>平均置信度是模型输出的描述统计，不是准确率。</li>
-              <li>没有独立测试真值时，AP50、IDF1 与珊瑚覆盖率保持 N/A。</li>
+              <li>没有独立测试真值时，AP50 与 IDF1 保持 N/A。</li>
               <li v-for="item in summary?.limitations || []" :key="item">{{ item }}</li>
             </ul>
           </div>
@@ -243,7 +243,8 @@ const primaryMetrics = {
 const tailOptions = [5, 10, 30].map(value => ({ value, label: `${value} 秒` }))
 const motionOptions = Object.entries(motions).map(([value, label]) => ({ value, label }))
 const roiOptions = Object.entries(roiPresets).map(([value, label]) => ({ value, label }))
-const truthMetrics = { ap50: '独立测试 AP50', idf1: '人工真值 IDF1', coral_cover: '珊瑚覆盖率' }
+// Coral cover lives in the coral panel; the fish summary still reports it as unavailable.
+const truthMetrics = { ap50: '独立测试 AP50', idf1: '人工真值 IDF1' }
 
 const tabItems = computed(() => [{ value: 'layers', label: '图层' }, { value: 'stats', label: '统计' }, { value: 'source', label: '来源' }])
 const runOptions = computed(() => runs.value.map((item, index) => ({ value: item.run_id, label: `第 ${runs.value.length - index} 次 · ${states[item.status] || item.status}`, hint: formatDateTime(item.created_at) })))
@@ -326,7 +327,7 @@ async function boot() {
   try {
     const [m, r] = await Promise.all([listAnalysisModels(bootAbort.signal), listAnalysisRuns(props.taskId, bootAbort.signal)])
     if (version !== generation || disposed) return
-    models.value = m.data.items; runs.value = r.data.items
+    models.value = m.data.items.filter(item => item.kind === 'fish'); runs.value = r.data.items.filter(item => item.kind === 'fish')
     modelId.value = models.value[0]?.id || ''
     selectedId.value = (runs.value.find(r => r.status === 'completed') || runs.value[0])?.run_id || ''
   } catch (e) {

@@ -19,3 +19,12 @@ export function inferno(t) {
 }
 
 export const infernoGradient = `linear-gradient(90deg, ${INFERNO.join(', ')})`
+
+// Coral mask classes: one fixed hue per class, always shown with a text label.
+// `video` fills masks over footage; `paper` and `ink` are chart strokes on light and dark surfaces.
+// Pairs differ in lightness so they stay apart under deuteranopia (OKLab ΔE ≥ 12 on each surface).
+export const CORAL_CLASSES = {
+  1: { key: 'nonBleached', label: '未白化', video: [62, 214, 176], paper: '#0b6e5c', ink: '#34dbb9' },
+  2: { key: 'bleached', label: '白化', video: [232, 84, 196], paper: '#d4609f', ink: '#d65fb5' }
+}
+export const coralCss = (id, alpha = 1) => `rgba(${CORAL_CLASSES[id].video.join(', ')}, ${alpha})`

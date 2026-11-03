@@ -52,10 +52,11 @@
             class="overlay-canvas"
           />
         </div>
-        <template v-if="wall && analysis">
+        <template v-if="wall && (analysis || coral)">
           <div class="hud hud-time"><span class="hud-tag">回放</span><span class="tnum">{{ formatClock(displayTime) }} / {{ formatClock(videoDuration) }}</span><span class="sep" /><span class="tnum">帧 {{ frameNumber }}<template v-if="frameCount"> / {{ frameCount.toLocaleString('zh-CN') }}</template></span></div>
           <div class="hud hud-layers" role="group" aria-label="画面图层">
-            <button v-for="(title, key) in layerNames" :key="key" type="button" :aria-pressed="analysis.layers[key]" @click="emit('layer', key, !analysis.layers[key])">{{ title }}</button>
+            <template v-if="analysis"><button v-for="(title, key) in layerNames" :key="key" type="button" :aria-pressed="analysis.layers[key]" @click="emit('layer', key, !analysis.layers[key])">{{ title }}</button></template>
+            <button v-if="coral" type="button" :aria-pressed="coral.layers.mask" @click="emit('coral-layer', 'mask', !coral.layers.mask)">珊瑚</button>
           </div>
         </template>
         <div v-if="analysis?.layers.roiEditing" class="hud hud-top"><IconPointer />在画面上点选 ROI 顶点，至少 3 个，完成后到“统计”应用</div>
@@ -64,6 +65,16 @@
           <span class="tnum">0 – {{ heatPeakText }}</span>
           <span class="sep" />
           <span>画面相对占据度，非海底地理坐标</span>
+        </div>
+        <div v-if="coral?.layers.mask && coral.frames.length" class="hud hud-legend" :class="{ stacked: analysis?.layers.heatmap && analysis?.heatmap }" role="status">
+          <template v-if="coralHud">
+            <span v-for="item in coralLegend" :key="item.label" class="key"><span class="swatch" :style="{ background: item.color }" />{{ item.label }}</span>
+            <span v-if="coralLegend.length" class="sep" />
+            <span class="tnum">掩膜 {{ (coralHud.ms / 1000).toFixed(1) }} s</span>
+            <template v-if="coralHud.state !== 'ready'"><span class="sep" /><span>{{ coralHud.state === 'failed' ? '这一帧的掩膜读取失败' : '正在载入掩膜…' }}</span></template>
+            <template v-else-if="!coralHud.separated"><span class="sep" /><span class="hud-warn">本帧未分离背景，只显示白化</span></template>
+          </template>
+          <span v-else>此刻没有采样掩膜</span>
         </div>
       </div>
     </div>
@@ -75,14 +86,16 @@ import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
 import { IconMovie, IconX, IconUpload, IconPointer } from '@tabler/icons-vue'
 import UiSegmented from './ui/UiSegmented.vue'
 import UiTooltip from './ui/UiTooltip.vue'
-import { trackColor, inferno } from '../lib/palette'
+import { trackColor, inferno, CORAL_CLASSES, coralCss } from '../lib/palette'
 import { formatClock } from '../lib/format'
 import { activeVideo, videoAspect } from '../lib/playback'
 import { installPlayerControls } from '../lib/playerControls'
 import { toast } from '../lib/toast'
+import { createMaskStore, sampleAt } from '../lib/coralMasks'
 
 const props = defineProps({
   analysis: { type:Object, default:null },
+  coral: { type: Object, default: null },
   status: { type: String, default: 'idle' },
   progress: { type: Number, default: 0 },
   logs: { type: Array, default: () => [] },
@@ -99,7 +112,7 @@ const props = defineProps({
   wall: Boolean
 })
 
-const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'update:playback-mode', 'layer'])
+const emit = defineEmits(['roi-point', 'file-drop', 'close', 'time-update', 'update:playback-mode', 'layer', 'coral-layer'])
 const layerNames = { boxes: '检测框', tails: '尾迹', heatmap: '热图' }
 const modeOptions = [{ value: 'overlay', label: '叠加层' }, { value: 'result', label: '推理视频' }]
 const isDemo = computed(() => /synthetic|合成|DEMO/i.test(props.fileName || ''))
@@ -142,8 +155,10 @@ let canvasContext = null
 let pendingResumePlayback = false
 let lastCanvasDpr = 0
 
-const frameCount = computed(() => props.analysis?.run?.summary?.frame_count || 0)
-const frameNumber = computed(() => Math.min(frameCount.value || Infinity, Math.floor(displayTime.value * (props.analysis?.fps || 30)) + 1))
+// Frame facts come from whichever Run is loaded; fish and coral Runs decode the same source video.
+const frameSource = computed(() => props.analysis?.run ? props.analysis : props.coral)
+const frameCount = computed(() => frameSource.value?.run?.summary?.frame_count || 0)
+const frameNumber = computed(() => Math.min(frameCount.value || Infinity, Math.floor(displayTime.value * (frameSource.value?.fps || 30)) + 1))
 const isOverlayMode = computed(() => props.playbackMode === 'overlay')
 const activeVideoUrl = computed(() => (
   props.playbackMode === 'result' && props.resultVideoUrl
@@ -195,7 +210,7 @@ function ensureArtPlayer() {
     customType: {},
   })
 
-  installPlayerControls(art, { fps: () => props.analysis?.fps || 0, snapshot: saveSnapshot })
+  installPlayerControls(art, { fps: () => frameSource.value?.fps || 0, snapshot: saveSnapshot })
   art.on('ready', handleArtReady)
   art.on('play', handleVideoPlay)
   art.on('pause', handleVideoPause)
@@ -857,6 +872,7 @@ function renderCanvas(force = false, explicitTime = null) {
   lastRenderedTime = time
 
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
+  if (props.coral) renderCoralLayer(ctx, metrics, time)
   if (props.analysis) renderAnalysisLayers(ctx,metrics,time)
   drawBoxes(ctx, currentBoxes, metrics)
 }
@@ -1000,6 +1016,50 @@ function renderAnalysisLayers(ctx, m, time) {
     }
   }
   if (a.roi?.length || a.layers.roiEditing) drawRoi(ctx, project)
+  ctx.restore()
+}
+
+// Coral masks sit below the fish layers. The latest sampled frame at or before the playhead is held
+// for one sampling interval; frames without background separation draw only the bleached class.
+let maskStore = null
+const coralHud = ref(null)
+const coralLegend = computed(() => {
+  const c = props.coral, hud = coralHud.value
+  if (!c || !hud) return []
+  return [1, 2].filter(id => c.layers[CORAL_CLASSES[id].key] && (id === 2 || hud.separated)).map(id => ({ label: CORAL_CLASSES[id].label, color: coralCss(id) }))
+})
+watch(() => props.coral?.runId, id => {
+  maskStore?.close()
+  maskStore = id ? createMaskStore(id, scheduleRedraw) : null
+  coralHud.value = null
+  scheduleRedraw()
+}, { immediate: true })
+watch(() => props.coral && [props.coral.layers, props.coral.frames], scheduleRedraw)
+
+function setCoralHud(next) {
+  const current = coralHud.value
+  if (current?.frame === next?.frame && current?.state === next?.state) return
+  coralHud.value = next
+}
+
+function renderCoralLayer(ctx, m, time) {
+  const c = props.coral, frames = c.frames || []
+  const index = c.layers.mask && maskStore ? sampleAt(frames, time * 1000) : -1
+  const sample = index >= 0 && time * 1000 - frames[index].timestamp_ms < c.intervalMs ? frames[index] : null
+  if (!sample) { setCoralHud(null); return }
+  if (frames[index + 1]) maskStore.prefetch(frames[index + 1].frame)
+  const entry = maskStore.get(sample.frame)
+  const state = entry ? 'ready' : maskStore.failed(sample.frame) ? 'failed' : 'loading'
+  setCoralHud({ frame: sample.frame, ms: sample.timestamp_ms, separated: sample.background_separated, state })
+  if (!entry) return
+  const colors = {}
+  if (c.layers.nonBleached && sample.background_separated) colors[1] = CORAL_CLASSES[1].video
+  if (c.layers.bleached) colors[2] = CORAL_CLASSES[2].video
+  if (!colors[1] && !colors[2]) return
+  ctx.save()
+  ctx.globalAlpha = c.layers.opacity
+  ctx.imageSmoothingEnabled = false
+  ctx.drawImage(maskStore.paint(sample.frame, entry, colors), m.offsetX, m.offsetY, m.drawWidth, m.drawHeight)
   ctx.restore()
 }
 
@@ -1180,6 +1240,7 @@ watch(() => props.logs, () => {
 
 onUnmounted(() => {
   unmounted = true
+  maskStore?.close()
   teardownPlaybackSurface()
   destroyArtPlayer()
 })
@@ -1216,6 +1277,10 @@ onUnmounted(() => {
 .hud { position: absolute; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 5px 9px; border-radius: var(--radius); font-size: var(--text-caption); color: oklch(0.95 0.01 205); background: oklch(0.15 0.02 240 / 0.78); backdrop-filter: blur(6px); pointer-events: none; }
 .hud-top { top: 10px; left: 50%; translate: -50% 0; color: #eabf70; }
 .hud-legend { left: 10px; bottom: 58px; }
+.hud-legend.stacked { bottom: 92px; }
+.hud .key { display: inline-flex; align-items: center; gap: 5px; }
+.hud .swatch { width: 9px; height: 9px; border-radius: 2px; box-shadow: 0 0 0 1px oklch(0 0 0 / 0.4); }
+.hud-warn { color: #eabf70; }
 .hud-time { top: 10px; left: 10px; font-size: var(--text-small); }
 .hud-tag { padding: 0 5px; border-radius: 3px; font-size: 10.5px; font-weight: 600; color: oklch(0.2 0.04 220); background: #61c7c2; }
 .hud-layers { top: 10px; right: 10px; gap: 2px; padding: 3px; pointer-events: auto; }
