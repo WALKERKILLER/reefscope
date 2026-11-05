@@ -8,9 +8,12 @@
           <span class="brand-sub">水下生态视频分析</span>
         </div>
         <nav class="nav" aria-label="主导航">
-          <button v-for="item in views" :key="item.value" class="nav-item" :aria-current="activeView === item.value ? 'page' : undefined" @click="activeView = item.value">
-            <component :is="item.icon" />{{ item.label }}
-          </button>
+          <div ref="navTrack" class="nav-track" :class="{ ready: indicator.ready }">
+            <span class="nav-indicator" :style="{ translate: `${indicator.x}px 0`, width: `${indicator.width}px` }" aria-hidden="true" />
+            <button v-for="item in views" :key="item.value" class="nav-item" :data-view="item.value" :aria-label="item.label" :aria-current="activeView === item.value ? 'page' : undefined" @click="activeView = item.value">
+              <component :is="item.icon" /><span class="nav-label">{{ item.label }}</span>
+            </button>
+          </div>
         </nav>
         <div class="top-actions">
           <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
@@ -97,13 +100,18 @@
           <div v-show="activeView === 'console'" class="handle handle-right" role="separator" aria-orientation="vertical" aria-label="调整分析面板宽度" @pointerdown="startResize('right', $event)" />
           <div v-show="activeView === 'console'" class="area-inspector">
             <template v-if="currentTaskId && workspaceMode === 'video'">
-              <div class="inspector-switch"><UiSegmented v-model="inspectorKind" :options="inspectorOptions" block aria-label="分析类型" /></div>
+              <header class="panel-head ruled">
+                <UiSegmented v-model="inspectorKind" :options="inspectorOptions" aria-label="分析类型" />
+                <UiTooltip text="刷新模型与分析记录">
+                  <button class="btn btn-ghost btn-sm btn-icon" aria-label="刷新模型与分析记录" @click="(inspectorKind === 'fish' ? analysisPanelRef : coralPanelRef)?.refresh()"><IconRefresh /></button>
+                </UiTooltip>
+              </header>
               <!-- Both panels stay mounted so the video keeps fish and coral layers while either is in view. -->
               <FishAnalysisPanel v-show="inspectorKind === 'fish'" class="panel" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
-              <CoralAnalysisPanel v-show="inspectorKind === 'coral'" class="panel" ref="coralPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" @coral="coralState = $event" @seek="handleTimelineClick" @toast="toast" />
+              <CoralAnalysisPanel v-show="inspectorKind === 'coral'" class="panel" ref="coralPanelRef" :task-id="currentTaskId" :current-time="currentTime" @coral="coralState = $event" @seek="handleTimelineClick" @toast="toast" />
             </template>
-            <aside v-else class="inspector-empty" aria-label="分析">
-              <h2>鱼类与珊瑚分析</h2>
+            <aside v-else class="inspector-empty" aria-labelledby="inspector-empty-title">
+              <header class="panel-head ruled"><h2 id="inspector-empty-title" class="panel-title">鱼类与珊瑚分析</h2></header>
               <ol class="steps">
                 <li><span class="num">1</span><div><strong>打开视频</strong><p class="note">从视频库选择，或上传 MP4。</p></div></li>
                 <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">鱼类逐帧追踪；珊瑚按采样间隔分割白化状态。各由独立 Worker 执行。</p></div></li>
@@ -133,9 +141,9 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
 import { TooltipProvider } from 'reka-ui'
-import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails } from '@tabler/icons-vue'
+import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh } from '@tabler/icons-vue'
 import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun, getHealth } from './api'
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
@@ -212,6 +220,21 @@ function invalidateWorkspaceRequests() {
   uploadAbort?.abort()
   taskAbort?.abort()
 }
+
+// --- Navigation ---
+// The selection pill is measured from the active button so it follows label width and font loading.
+const navTrack = ref(null)
+const indicator = reactive({ x: 0, width: 0, ready: false })
+let navObserver = null
+function placeIndicator() {
+  const button = navTrack.value?.querySelector(`[data-view="${activeView.value}"]`)
+  if (!button) return
+  indicator.x = button.offsetLeft
+  indicator.width = button.offsetWidth
+  // Enable the slide only after the first placement, so the page never animates in.
+  if (!indicator.ready) requestAnimationFrame(() => { indicator.ready = true })
+}
+watch(activeView, () => nextTick(placeIndicator))
 
 // --- Layout ---
 function startResize(side, event) {
@@ -464,7 +487,7 @@ async function handleSingleFileAction({ action, item }) {
     if (action === 'copy') {
       const res = await mutateTask(taskId, { action: 'copy' })
       upsertHistory(res.data)
-      showToast('已复制', res.data.original_filename, 'success')
+      showToast('已创建副本', res.data.original_filename, 'success')
       return
     }
     if (action === 'rerun') {
@@ -501,14 +524,14 @@ async function handleBatchFileAction({ action }) {
       const res = await batchMutateTasks({ action: 'copy', task_ids: taskIds })
       for (const task of res.data.tasks || []) upsertHistory(task)
       setSelectionMode(false)
-      showToast('已复制', `${selectedItems.length} 个视频`, 'success')
+      showToast('已创建副本', `${selectedItems.length} 个视频`, 'success')
       return
     }
     if (action === 'rerun') {
       let count = 0
       for (const taskId of taskIds) {
         try { await queueNewAnalysis(taskId); count += 1 }
-        catch { showToast('部分分析没有排队', `已排队 ${count} 个，其余视频请单独重试。`, 'alert'); return }
+        catch { showToast('只排队了部分视频', `已排队 ${count} 个。其余视频请逐个重新分析。`, 'alert'); return }
       }
       setSelectionMode(false)
       analysisPanelRef.value?.refresh()
@@ -586,6 +609,10 @@ async function loadPipelineConfig() {
 watch(activeView, () => setSelectionMode(false))
 
 onMounted(async () => {
+  placeIndicator()
+  navObserver = new ResizeObserver(placeIndicator)
+  if (navTrack.value) navObserver.observe(navTrack.value)
+  document.fonts?.ready.then(placeIndicator)
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('fullscreenchange', syncFullscreen)
   checkHealth()
@@ -597,6 +624,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  navObserver?.disconnect()
   window.removeEventListener('keydown', onKeydown)
   document.removeEventListener('fullscreenchange', syncFullscreen)
   invalidateWorkspaceRequests()
@@ -608,18 +636,22 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app { display: grid; grid-template-rows: 48px 1fr 28px; height: 100dvh; }
-.topbar { display: flex; align-items: center; gap: 24px; padding: 0 12px 0 16px; background: var(--canvas); box-shadow: inset 0 -1px 0 var(--line); }
-.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Three-zone header: brand leads, navigation sits on the true center line, actions trail. */
+.topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; padding-inline: 14px; background: var(--canvas); box-shadow: inset 0 -1px 0 var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; justify-self: start; }
 .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
 .brand-name { font-weight: 600; letter-spacing: -0.01em; }
 .brand-sub { color: var(--ink-3); font-size: var(--text-small); white-space: nowrap; }
-.nav { display: flex; gap: 2px; height: 100%; }
-.nav-item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 12px; border: 0; background: none; font: inherit; font-weight: 500; color: var(--ink-3); cursor: pointer; transition: color 120ms var(--ease); }
+.nav { justify-self: center; min-width: 0; }
+.nav-track { position: relative; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.nav-indicator { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px oklch(0 0 0 / 0.1); pointer-events: none; }
+.dark .nav-indicator { background: var(--surface-3); box-shadow: 0 0 0 1px var(--line-strong); }
+.nav-track.ready .nav-indicator { transition: translate 200ms var(--ease), width 200ms var(--ease); }
+.nav-item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: none; font: inherit; font-weight: 500; color: var(--ink-3); white-space: nowrap; cursor: pointer; transition: color 120ms var(--ease); }
 .nav-item:hover { color: var(--ink); }
 .nav-item[aria-current=page] { color: var(--ink); }
-.nav-item[aria-current=page]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 1px; background: var(--accent); }
 .nav-item[aria-current=page] .tabler-icon { color: var(--accent); }
-.top-actions { display: flex; gap: 4px; margin-inline-start: auto; }
+.top-actions { display: flex; gap: 4px; justify-self: end; }
 .main { position: relative; min-height: 0; overflow: hidden; }
 .layout {
   display: grid; height: 100%; padding: 10px; column-gap: 0; row-gap: 10px;
@@ -649,7 +681,6 @@ onBeforeUnmount(() => {
 .app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
 .area-library { grid-area: library; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
 .area-inspector { grid-area: inspector; display: flex; flex-direction: column; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
-.inspector-switch { flex: none; padding: 10px 16px 0; }
 .panel { flex: 1 1 0; min-height: 0; }
 .area-head { grid-area: head; min-width: 0; }
 .area-center { grid-area: center; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
@@ -661,9 +692,8 @@ onBeforeUnmount(() => {
 .handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 3px; height: 28px; translate: -50% -50%; border-radius: 2px; background: var(--line-strong); opacity: 0; transition: opacity 120ms var(--ease); }
 .handle:hover::after, .handle:active::after { opacity: 1; }
 .timeline-card { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
-.inspector-empty { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
-.inspector-empty h2 { font-size: var(--text-title); font-weight: 600; }
-.steps { display: flex; flex-direction: column; gap: 14px; }
+.inspector-empty { display: flex; flex-direction: column; }
+.steps { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
 .steps li { display: flex; gap: 10px; }
 .steps strong { font-weight: 500; }
 .num { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; font-size: var(--text-caption); font-weight: 600; color: var(--ink-2); background: var(--surface-3); }
@@ -674,7 +704,6 @@ onBeforeUnmount(() => {
 .health[data-state=offline] { color: var(--danger); }
 .health[data-state=checking] .dot { color: var(--ink-3); }
 .context { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-2); }
-.truncate { overflow: hidden; text-overflow: ellipsis; }
 .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: 0.6; }
 .spacer { flex: 1; }
 .faint { color: var(--ink-3); }
@@ -689,7 +718,7 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 900px) {
   .topbar { gap: 8px; padding: 0 8px; }
-  .nav-item { padding: 0 8px; }
+  .nav-item { padding: 0 10px; }
   .layout, .layout.wall { display: flex; flex-direction: column; overflow-y: auto; padding: 8px; gap: 8px; }
   .handle { display: none; }
   .area-library { flex: none; height: 220px; }
@@ -697,5 +726,11 @@ onBeforeUnmount(() => {
   .area-inspector { flex: none; min-height: 560px; }
   .area-side, .area-left { flex: none; }
   .statusbar .faint { display: none; }
+}
+@media (max-width: 640px) { .brand-name { display: none; } }
+/* Narrow phones keep every destination visible as an icon; the label stays the accessible name. */
+@media (max-width: 480px) {
+  .nav-item { padding: 0 12px; }
+  .nav-label { display: none; }
 }
 </style>

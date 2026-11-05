@@ -1,16 +1,8 @@
 <template>
   <aside class="inspector" aria-label="珊瑚白化分析">
-    <header class="head">
-      <div class="min-w-0">
-        <h2>珊瑚白化分析</h2>
-        <p class="note truncate" :title="fileName">{{ fileName }}</p>
-      </div>
-      <UiTooltip text="刷新模型与分析记录">
-        <button class="btn btn-ghost btn-icon" @click="boot" :disabled="busy" aria-label="刷新模型与分析记录"><IconRefresh /></button>
-      </UiTooltip>
-    </header>
+    <h2 class="sr-only">珊瑚白化分析</h2>
 
-    <p v-if="error" class="banner danger" role="alert"><IconAlertTriangle /><span>{{ error }}</span><button class="link" @click="boot">重新连接</button></p>
+    <p v-if="error" class="ui-banner ui-banner-danger" role="alert"><IconAlertTriangle /><span>{{ error }}</span><button class="ui-link" @click="boot">重新连接</button></p>
 
     <section class="run" aria-label="分析记录">
       <div class="run-row">
@@ -24,10 +16,10 @@
       </div>
 
       <div v-if="run" class="status" aria-live="polite">
-        <span class="state" :data-state="run.status"><span class="dot" />{{ states[run.status] || run.status }}</span>
+        <span class="ui-run-state" :data-state="run.status"><span class="dot" />{{ states[run.status] || run.status }}</span>
         <span class="note tnum">第 {{ run.attempt }}/3 次尝试</span>
       </div>
-      <div v-if="run && (run.status === 'queued' || run.status === 'running')" class="progress" role="progressbar" :aria-valuenow="run.progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析进度"><span :style="{ width: `${run.progress}%` }" /></div>
+      <div v-if="run && (run.status === 'queued' || run.status === 'running')" class="ui-progress" role="progressbar" :aria-valuenow="run.progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析进度"><span :style="{ width: `${run.progress}%` }" /></div>
       <p v-if="run?.status === 'queued'" class="note">等待珊瑚 Worker 领取。可以继续播放视频。</p>
       <p v-if="run?.status === 'running'" class="note tnum">正在分割采样帧 · {{ run.progress }}%</p>
       <div v-if="run?.status === 'failed'" class="failed">
@@ -121,8 +113,8 @@
 
           <p v-if="summary" class="applied"><span class="eyebrow">已应用</span><span class="tnum">{{ appliedText }}</span></p>
 
-          <div v-if="summary" class="kpis">
-            <div v-for="(item, key) in primaryMetrics" :key="key" class="kpi" :title="summary.metrics[key]?.denominator">
+          <div v-if="summary" class="ui-kpis">
+            <div v-for="(item, key) in primaryMetrics" :key="key" class="ui-kpi" :class="{ missing: kpiValue(key) == null }" :title="summary.metrics[key]?.denominator">
               <span class="eyebrow">{{ item.title }}</span>
               <strong class="tnum">{{ kpiValue(key) ?? 'N/A' }}</strong>
               <span class="note">{{ summary.metrics[key]?.value == null ? MISSING_REASONS[summary.metrics[key]?.reason] || item.unit : item.unit }}</span>
@@ -136,7 +128,7 @@
 
           <div v-if="summary" class="block">
             <div class="block-head"><h3>需要真值或 ROI 的指标</h3></div>
-            <dl class="na-list">
+            <dl class="ui-na-list">
               <div v-for="(title, key) in truthMetrics" :key="key"><dt>{{ title }}</dt><dd><span class="tag">N/A</span><span class="note">{{ MISSING_REASONS[summary.metrics[key]?.reason] || summary.metrics[key]?.reason }}</span></dd></div>
             </dl>
           </div>
@@ -183,12 +175,12 @@
                 <tr v-for="row in evidenceRows" :key="row.key"><td>{{ row.domain }}</td><td>{{ row.label }}</td><td>{{ row.baseline }}</td><td>{{ row.adapted }}</td></tr>
               </tbody>
             </table>
-            <p class="note">数字来自组员交付的复核报告：开发期已查看过的测试集，换了图像守卫后重新计算，不能当作泛化证据。本地测试集没有白化真值。</p>
+            <p class="note">数字来自模型交付方的复核报告：测试集在开发中已查看过，更换图像特征保护后重新计算，不能作为泛化证据。本地测试集没有白化真值。</p>
           </div>
 
           <div class="block">
             <div class="block-head"><h3>解读限制</h3></div>
-            <ul class="limits">
+            <ul class="ui-bullets">
               <li v-for="item in limitations" :key="item">{{ item }}</li>
             </ul>
           </div>
@@ -213,7 +205,7 @@ import { CORAL_CLASSES, coralCss } from '../lib/palette'
 import { sampleAt } from '../lib/coralMasks'
 import { MISSING_REASONS, formatDateTime } from '../lib/format'
 
-const props = defineProps({ taskId: Number, currentTime: { type: Number, default: 0 }, fileName: String })
+const props = defineProps({ taskId: Number, currentTime: { type: Number, default: 0 } })
 const emit = defineEmits(['coral', 'seek', 'toast'])
 
 const models = ref([]), runs = ref([]), modelId = ref(''), selectedId = ref(''), run = ref(null)
@@ -499,25 +491,12 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .inspector { height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--surface); display: flex; flex-direction: column; }
-.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; }
-h2 { font-size: var(--text-title); font-weight: 600; }
 h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
-.min-w-0 { min-width: 0; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.banner { display: flex; gap: 8px; align-items: flex-start; margin: 0 16px 10px; padding: 8px 10px; border-radius: var(--radius); font-size: var(--text-small); line-height: 1.5; }
-.banner .tabler-icon { --icon-size: 14px; margin-top: 2px; }
-.banner.danger { color: var(--danger); background: var(--danger-soft); }
-.link { margin-inline-start: auto; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; white-space: nowrap; }
-.run { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; }
+.ui-banner { margin: 12px 16px 0; }
+.run { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; }
 .run-row { display: flex; align-items: flex-end; gap: 8px; }
 .grow { flex: 1; }
 .status { display: flex; align-items: center; justify-content: space-between; }
-.state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ink-2); }
-.state[data-state=completed] .dot { color: var(--ok); }
-.state[data-state=running] .dot, .state[data-state=queued] .dot { color: var(--info); }
-.state[data-state=failed] { color: var(--danger); }
-.progress { height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
-.progress > span { display: block; height: 100%; background: var(--info); transition: width 300ms var(--ease); }
 .failed { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--danger); font-size: var(--text-small); line-height: 1.5; }
 .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
 .meta div { min-width: 0; }
@@ -559,14 +538,7 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .filters { display: flex; flex-direction: column; gap: 12px; }
 .with-action { display: flex; gap: 4px; align-items: center; }
 .applied { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2); font-size: var(--text-small); }
-.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 12px; border-radius: var(--radius-lg); overflow: hidden; background: var(--line); box-shadow: 0 0 0 1px var(--line); }
-.kpi { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--surface); min-width: 0; }
-.kpi strong { font-size: var(--text-figure); font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
-.kpi .note { font-size: var(--text-caption); }
-.na-list { display: flex; flex-direction: column; gap: 6px; }
-.na-list div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: baseline; font-size: var(--text-small); }
-.na-list dt { color: var(--ink-2); }
-.na-list dd { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.ui-kpis { margin-top: 12px; }
 .exports { display: flex; flex-wrap: wrap; gap: 6px; }
 .provenance { display: flex; flex-direction: column; gap: 10px; }
 .provenance dd { display: flex; align-items: flex-start; gap: 4px; flex-wrap: wrap; font-size: var(--text-small); overflow-wrap: anywhere; }
@@ -575,6 +547,4 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .evidence th { padding: 4px 6px; font-weight: 500; color: var(--ink-3); text-align: start; box-shadow: inset 0 -1px 0 var(--line); }
 .evidence td { padding: 5px 6px; color: var(--ink-2); box-shadow: inset 0 -1px 0 var(--line); }
 .evidence th:nth-child(n+3), .evidence td:nth-child(n+3) { text-align: end; }
-.limits { display: flex; flex-direction: column; gap: 6px; padding-inline-start: 16px; list-style: disc; color: var(--ink-2); font-size: var(--text-small); line-height: 1.55; }
-.limits li::marker { color: var(--ink-3); }
 </style>

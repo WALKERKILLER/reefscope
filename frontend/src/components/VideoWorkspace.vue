@@ -1,6 +1,6 @@
 <template>
   <div class="workspace" :class="{ wall }">
-    <header v-if="!wall" class="bar">
+    <header v-if="!wall" class="panel-head ruled">
       <div class="title">
         <IconMovie class="title-icon" />
         <span class="name" :title="fileName">{{ fileName || '未选择视频' }}</span>
@@ -25,9 +25,9 @@
           @drop.prevent="onDrop"
         >
           <IconUpload class="drop-icon" />
-          <h2>拖入 MP4 视频开始</h2>
+          <h2>拖入 MP4 视频</h2>
           <p class="note">视频保存在本地后端。上传后在右侧选择注册模型创建分析，或从左侧视频库打开已有视频。</p>
-          <button class="btn" @click="openFilePicker"><IconUpload />选择文件</button>
+          <button class="btn" @click="openFilePicker"><IconUpload />选择 MP4 文件</button>
         </div>
         <input ref="fileInputRef" type="file" accept="video/mp4" class="sr-only" tabindex="-1" @change="onFilePicked" />
       </div>
@@ -1341,7 +1341,6 @@ onUnmounted(() => {
 
 <style scoped>
 .workspace { display: flex; flex-direction: column; height: 100%; min-height: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
-.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 40px; padding: 0 8px 0 12px; flex: none; box-shadow: inset 0 -1px 0 var(--line); }
 .title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .title-icon { color: var(--ink-3); }
 .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
@@ -1387,7 +1386,7 @@ onUnmounted(() => {
 .mask-tip .swatch { box-shadow: 0 0 0 1px oklch(1 0 0 / 0.35); }
 .mask-tip .faint { color: oklch(0.95 0.01 205 / 0.6); }
 .hud-time { top: 10px; left: 10px; font-size: var(--text-small); }
-.hud-tag { padding: 0 5px; border-radius: 3px; font-size: 10.5px; font-weight: 600; color: oklch(0.2 0.04 220); background: #61c7c2; }
+.hud-tag { padding: 0 5px; border-radius: 3px; font-size: var(--text-caption); font-weight: 600; color: oklch(0.2 0.04 220); background: #61c7c2; }
 .hud-layers { top: 10px; right: 10px; gap: 2px; padding: 3px; pointer-events: auto; }
 .hud-layers button { height: 24px; padding: 0 9px; border: 0; border-radius: 4px; font: inherit; font-size: var(--text-caption); color: oklch(0.95 0.01 205 / 0.6); background: none; cursor: pointer; transition: color 120ms var(--ease), background-color 120ms var(--ease); }
 .hud-layers button:hover { color: oklch(0.95 0.01 205); }

@@ -118,7 +118,7 @@ def _run_task_action(task: Task, action: str, payload: dict | None = None) -> di
     payload = payload or {}
 
     if action in {"delete", "rename"} and task.analysis_runs.exists():
-        raise ValueError("视频已被分析 Run 引用，不能删除或重命名。")
+        raise ValueError("这个视频已有分析记录，不能删除或重命名。需要改名时，可以先创建副本。")
 
     if action == "delete":
         source, result, task_id = task.uploaded_video_path, task.result_video_path, task.id
@@ -368,7 +368,7 @@ class UploadVideoView(APIView):
             return Response({"detail": "请上传字段名为 video 的 mp4 文件。"}, status=status.HTTP_400_BAD_REQUEST)
 
         if not video_file.name.lower().endswith(".mp4"):
-            return Response({"detail": "当前演示版仅支持 mp4 视频。"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "只支持 MP4 视频。"}, status=status.HTTP_400_BAD_REQUEST)
 
         upload_dir = Path(settings.MEDIA_ROOT) / "uploads"
         storage = FileSystemStorage(location=upload_dir, base_url=f"{settings.MEDIA_URL}uploads/")
@@ -428,7 +428,7 @@ class TaskDetailView(APIView):
         try:
             _run_task_action(task, "delete")
         except (ValueError, ProtectedError):
-            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
+            return Response({"detail": "这个视频已有分析记录，不能删除。"}, status=409)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def patch(self, request, task_id):
@@ -445,7 +445,7 @@ class TaskDetailView(APIView):
             with transaction.atomic():
                 result = _run_task_action(task, action, request.data)
         except ProtectedError:
-            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
+            return Response({"detail": "这个视频已有分析记录，不能删除。"}, status=409)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -484,7 +484,7 @@ class TaskBatchActionView(APIView):
                     if result is not None:
                         results.append(result)
         except ProtectedError:
-            return Response({"detail": "视频已被分析 Run 引用，不能删除。"}, status=409)
+            return Response({"detail": "这个视频已有分析记录，不能删除。"}, status=409)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
