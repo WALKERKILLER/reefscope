@@ -128,6 +128,10 @@ AnnotationDatasetVersion ──(引用)──> ModelVersion
 
 **注意：** 这不是 CoralscapesV2 原始 95 类的 ID。预训练 SegFormer 模型实际有 96 logits：source=0 为 void，必须变为 target=255（ignore），有效 source=1..95；本系统 target=0 才表示 other/background。必须从模型 `id2label` 提取官方标签，创建**经专家审核**的 `source_label → target_class` 映射，并记录映射版本。没有明确映射的原始类别落入 `unknown` 或 `ignore`，不可凭颜色自动当“健康”。
 
+### 交付模型的三类输出（coral-bleaching/v1）
+
+组员交付的 `reef-coral-final/v1` 权重只输出 0 背景、1 非白化、2 白化，不使用上表六类，也不输出 255。权重内置的图像特征保护逐帧决定是否区分背景；未区分的帧没有 0，1 同时包含背景。平台按 [珊瑚白化分析契约](../specs/draft-coral-bleaching-analysis.md) 保存和统计这一输出。上表六类仍是 #19 专家映射完成后的目标契约。
+
 ## 核心统计定义
 
 - `coral_healthy_fraction` = 可确认未白化的活体珊瑚像素 / (可确认未白化 + 白化的活体珊瑚像素)。
