@@ -23,6 +23,8 @@ from .sources import SOURCES
 PROMPT_VERSION = "reefscope-observation-agent/v1"
 FORMATS = ("openai_chat", "anthropic_messages")
 MAX_RESPONSE_BYTES = 1024 * 1024
+# CDN firewalls in front of many gateways (Cloudflare error 1010) reject the default "Python-urllib/x.y" agent.
+USER_AGENT = "ReefScope/1.0"
 API_KEY = re.compile(r"[\x21-\x7e]{8,400}")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 CITATION = re.compile(r"\[([A-Z0-9][A-Z0-9-]{1,30})\]")
@@ -50,7 +52,8 @@ SYSTEM_PROMPT = """你是珊瑚礁视频观测报告的撰写助手。平台已�
 
 ERRORS = {
     "agent_disabled": "AI 解读未启用。", "agent_not_configured": "请先填写接口地址和模型。", "agent_key_missing": "请先保存 API Key。",
-    "agent_auth_failed": "服务拒绝了这个 API Key。检查 Key 是否有效、是否有该模型的权限。",
+    "agent_auth_failed": "服务拒绝了这个 API Key。检查 Key 是否有效。",
+    "agent_forbidden": "服务拒绝了请求（HTTP 403）。检查 Key 是否有该模型的权限；如果其他客户端可以正常使用，可能是服务前的防火墙拦截了本平台，请联系服务方。",
     "agent_endpoint_not_found": "接口地址不存在。检查 Base URL 和接口格式是否匹配。",
     "agent_rate_limited": "请求过于频繁或额度不足，稍后再试。", "agent_request_rejected": "服务拒绝了请求。检查模型名称是否正确。",
     "agent_upstream_error": "服务端出错，稍后再试。", "agent_http_error": "服务返回了意外的 HTTP 状态。",
@@ -176,7 +179,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def post(url, headers, body, timeout):
     """POST JSON with no redirects, an overall deadline and a response size cap."""
     request = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST",
-                                     headers={"Content-Type": "application/json", "Accept": "application/json", **headers})
+                                     headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": USER_AGENT, **headers})
     deadline = time.monotonic() + timeout
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=timeout) as response:
@@ -190,7 +193,7 @@ def post(url, headers, body, timeout):
                 chunks.append(chunk)
     except urllib.error.HTTPError as exc:
         status = exc.code
-        code = {401: "agent_auth_failed", 403: "agent_auth_failed", 404: "agent_endpoint_not_found", 429: "agent_rate_limited"}.get(status)
+        code = {401: "agent_auth_failed", 403: "agent_forbidden", 404: "agent_endpoint_not_found", 429: "agent_rate_limited"}.get(status)
         if code is None:
             code = "agent_redirect_refused" if 300 <= status < 400 else "agent_request_rejected" if status in (400, 413, 422) else \
                 "agent_upstream_error" if status >= 500 else "agent_http_error"

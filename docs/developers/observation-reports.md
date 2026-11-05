@@ -45,7 +45,7 @@ HotSpot ≥ 1 而 DHW 缺失时不给等级；DHW 为 0 时提示核对录入值
 ## 模型服务
 
 - **格式**：OpenAI 兼容填写包含 `/v1` 的 Base URL，请求 `{base}/chat/completions`；Anthropic Messages 填写服务根地址，请求 `{base}/v1/messages`（Base URL 已以 `/v1` 结尾时只追加 `/messages`）。对话框显示解析后的请求地址。OpenAI 格式不发送 token 上限和 temperature；Anthropic 格式发送“最大输出 tokens”。
-- **请求边界**：只接受 http/https，不跟随重定向，单次超时 5–100 s，响应上限 1 MB。后端进程的 `HTTP(S)_PROXY` 环境变量照常生效。
+- **请求边界**：只接受 http/https，不跟随重定向，单次超时 5–100 s，响应上限 1 MB。后端进程的 `HTTP(S)_PROXY` 环境变量照常生效。请求带 `User-Agent: ReefScope/1.0`：不少网关前的 Cloudflare 会以 403（Error 1010）拒绝 Python 默认的 `Python-urllib`。HTTP 403 单独提示，可能是 Key 无权使用该模型，也可能是防火墙拦截。
 - **Key**：只写。保存在 `REPORT_AGENT_KEY_PATH`（默认 `backend/.secrets/report-agent.key`，权限 0600，被 Git 忽略）。响应只返回是否已保存和末四位。修改 Base URL 时若没有同时填写新 Key，旧 Key 会被清除；“测试连接”只使用已保存的设置。
 - **外发数据**：站点名称、观测日期、视频序号、镜头运动、各指标的标签、显示值、状态与原因、可比性、模型是否有独立评估、局限说明和资料卡。不发送坐标、文件名、Run ID 和画面。
 - **输出与审计**：模型输出固定 JSON；数值只写 `{{metric_id}}`，由服务端替换；引用只用资料卡 ID（见 `backend/app/observation/sources.py`）。服务端记录未核对数字、未知指标和未知引用。页面用虚线下划线标出平台填入的数值，用黄色标出模型自行写出的数字；导出写成“（未核对）”。

@@ -214,6 +214,7 @@ class ReportFlowTests(ObservationFixture, TestCase):
         sent = self.upstream.requests[0]
         self.assertEqual(sent["path"], "/chat/completions")
         self.assertEqual(sent["headers"]["authorization"], "Bearer key-0123456789abcdef")
+        self.assertEqual(sent["headers"]["user-agent"], "ReefScope/1.0")
         self.assertNotIn("max_tokens", sent["body"])
         self.assertNotIn("temperature", sent["body"])
         prompt = sent["body"]["messages"][1]["content"]
@@ -247,7 +248,7 @@ class ReportFlowTests(ObservationFixture, TestCase):
 
     def test_failures_still_store_the_deterministic_report(self):
         self.configure("openai_chat")
-        for reply, code in [((500, {}), "agent_upstream_error"), ((302, {}), "agent_redirect_refused"), ((401, {}), "agent_auth_failed"),
+        for reply, code in [((500, {}), "agent_upstream_error"), ((302, {}), "agent_redirect_refused"), ((401, {}), "agent_auth_failed"), ((403, {}), "agent_forbidden"),
                             ((200, {"choices": [{"message": {"content": "not json"}}]}), "agent_invalid_response"),
                             ((200, {"choices": [{"message": {"content": "{}"}, "finish_reason": "length"}]}), "agent_output_truncated")]:
             self.upstream.reply = reply
