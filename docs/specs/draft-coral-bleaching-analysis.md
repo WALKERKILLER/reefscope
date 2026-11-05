@@ -28,6 +28,10 @@ Status: Draft
 
 `ModelVersion` 增加 `kind`（fish/coral，已有记录为 fish）与 `metadata`。metadata 保存源模型、revision、许可证、源模型聚合方式与适用范围、推理参数和训练范围。`--evidence` 只导入 `assessment.json` 与 `test-report.json` 中声明的全图类别指标、评估语境与文件摘要。模型 API 返回 kind 与 metadata，不返回路径。模型 ID 不可覆盖。
 
+### 训练报告
+
+`import_coral_training <id> <dir>` 只为 kind=coral 的模型导入交付的训练日志包。读取的文件必须与包内校验清单一致；逐 epoch 数值由原始 history 重算。导出权重、训练适配器、测试与审计记录、选定 epoch 与阈值、注册 metadata 任一不一致即拒绝导入。快照只存白名单数值与摘要，不存路径、设备名称或原始日志。报告 `reefscope-coral-report/v1` 沿用七章提纲；验证集同时用于选 epoch 与阈值，测试数值是回归复核，均不作为独立评估，缺少验证 loss、逐 step loss、终端日志与本地白化真值时列为缺失输入。
+
 ### Run 与产物
 
 - `POST /api/v1/tasks/{id}/analysis-runs` 接受 `kind=coral`、`models={"coral": id}`。模型 kind 不符返回 400 `model_kind_mismatch`。settings 只允许 `sample_every_seconds`（0.5–60，默认 2）与 `camera_motion`。
@@ -70,6 +74,7 @@ Status: Draft
 - `python3 scripts/check.py`、`git diff --check`；`backend/` 中 `manage.py check`、`makemigrations --check --dry-run`、`manage.py test`；`frontend/` 中 `npm ci`、`npm run build`。
 - Django 测试覆盖：注册拒绝根目录外文件、非 safetensors、错误格式与标签、截断头；kind 与模型不符；采样间隔越界；未被索引的掩膜阻止发布；掩膜接口的 404/409/400；鱼类接口拒绝 coral Run；像素合并、窗口筛选与两种缺失原因。
 - 本地 GPU：注册交付权重并在授权视频上完成 coral Run，记录设备、精度、耗时与显存；适配器掩膜与交付命令行在同一帧上逐像素比较；平台运行时与交付验证运行时在同一帧上逐像素比较并报告差异。
+- Django 测试覆盖训练日志导入：逐轮重算、路径剔除、校验和、权重与适配器链、选定 epoch 与注册 metadata 不一致时拒绝，fish 模型拒绝导入。
 - 浏览器：暂停、seek、全屏与缩放下掩膜对齐；按类别显示；大屏在既定分辨率与两套主题下一屏无溢出。
 
 ## Evidence

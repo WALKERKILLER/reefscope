@@ -21,8 +21,8 @@ def value_text(value):
     return str(value)
 
 
-def render_markdown(sections):
-    parts = ["# 鱼类模型质量报告"]
+def render_markdown(sections, title="鱼类模型质量报告"):
+    parts = [f"# {title}"]
     for index, section in enumerate(sections):
         parts.append(f"## {index+1}. {section['title']}")
         parts.extend(section["paragraphs"])
@@ -33,9 +33,9 @@ def render_markdown(sections):
     return "\n\n".join(parts)+"\n"
 
 
-def render_html(sections):
+def render_html(sections, title="鱼类模型质量报告"):
     style = 'body{font:14px/1.7 system-ui,sans-serif;max-width:960px;margin:32px auto;padding:0 24px;color:#17212c}h1{font-size:26px}h2{font-size:19px;break-after:avoid}table{border-collapse:collapse;width:100%;margin:12px 0}th,td{text-align:left;padding:7px 12px;border-bottom:1px solid #ccd3db;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.6 monospace}tr{break-inside:avoid}@media print{body{max-width:none;margin:0}h2{break-after:avoid}pre{font-size:9px}@page{size:A4;margin:16mm}}'
-    parts = ['<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>鱼类模型质量报告</title>',f'<style>{style}</style><h1>鱼类模型质量报告</h1>']
+    parts = [f'<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>{escape(title)}</title>',f'<style>{style}</style><h1>{escape(title)}</h1>']
     for i, section in enumerate(sections):
         parts.append(f'<section><h2>{i+1}. {escape(section["title"])}</h2>')
         parts.extend(f'<p>{escape(p)}</p>' for p in section["paragraphs"])
