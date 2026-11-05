@@ -10,6 +10,7 @@ services:
       - ./backend/media:/app/media
       - ./backend/models:/app/models:ro
       - ./backend/db.sqlite3:/app/db.sqlite3
+      - ./backend/.secrets:/app/.secrets
     environment:
       - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-demo-only-underwater-fish-detection}
       - DJANGO_DEBUG=${DJANGO_DEBUG:-true}

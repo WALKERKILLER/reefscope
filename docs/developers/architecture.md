@@ -4,7 +4,7 @@
 
 前端通过 `frontend/src/api.js` 上传视频，Django 的 `UploadVideoView` 创建 `Task`。`FishAnalysisPanel.vue` 通过 v1 API 管理 Run、窗口、图层和导出，`VideoWorkspace.vue` 复用 Artplayer 与 Canvas 展示服务端轨迹和热图。旧 `ProcessTaskView` / `start_processing()` 检测接口继续保留，其线程进度仍依赖进程字典。
 
-鱼类 v1 API 创建 `AnalysisRun`，注册的 `ModelVersion` 保存权重谱系。独立 `run_analysis_worker` 用数据库条件更新领取 Run；`app/analysis/fish.py` 顺序追踪，`storage.py` 管私有产物。此路径不使用旧 daemon Thread，运行方法见 [鱼类 Worker](fish-analysis.md)。珊瑚 Run 共用同一队列与 Worker，按模型 kind 分派到 `app/analysis/coral.py`，掩膜查询与统计在 `coral_query.py`，见 [珊瑚白化分析](coral-analysis.md)。
+鱼类 v1 API 创建 `AnalysisRun`，注册的 `ModelVersion` 保存权重谱系。独立 `run_analysis_worker` 用数据库条件更新领取 Run；`app/analysis/fish.py` 顺序追踪，`storage.py` 管私有产物。此路径不使用旧 daemon Thread，运行方法见 [鱼类 Worker](fish-analysis.md)。珊瑚 Run 共用同一队列与 Worker，按模型 kind 分派到 `app/analysis/coral.py`，掩膜查询与统计在 `coral_query.py`，见 [珊瑚白化分析](coral-analysis.md)。观测报告在 `app/observation/` 中读取已完成 Run 的产物，生成按观测点归档的不可变报告，可选同步调用用户配置的 AI 服务撰写解读，见 [观测报告](observation-reports.md)。
 
 ## 目录责任
 

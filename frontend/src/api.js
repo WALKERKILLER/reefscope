@@ -73,3 +73,19 @@ export const getModelResearch = (id, signal) => http.get(`/v1/model-versions/${e
 export const getTrainingReport = (id, signal) => http.get(`/v1/reports/${id}`, { signal })
 export const downloadTrainingReport = (id) => http.get(`/v1/reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
 export const reportPrintUrl = (id) => `${API_BASE_URL}/api/v1/reports/${encodeURIComponent(id)}/export?export=html`
+
+export const getReportAgent = (signal) => http.get('/v1/report-agent/config', { signal })
+export const saveReportAgent = (payload) => http.put('/v1/report-agent/config', payload)
+// The backend waits for the model service, bounded by the saved timeout (at most 100 s).
+export const testReportAgent = () => http.post('/v1/report-agent/test', null, { timeout: 110000 })
+export const listSites = (signal) => http.get('/v1/sites', { signal })
+export const createSite = (payload) => http.post('/v1/sites', payload)
+export const updateSite = (id, payload) => http.patch(`/v1/sites/${id}`, payload)
+export const deleteSite = (id) => http.delete(`/v1/sites/${id}`)
+export const listSiteReports = (id, signal) => http.get(`/v1/sites/${id}/reports`, { signal })
+export const listReportCandidates = (signal) => http.get('/v1/observation-reports/candidates', { signal })
+export const previewObservationReport = (payload) => http.post('/v1/observation-reports/preview', payload, { timeout: 60000 })
+export const createObservationReport = (payload) => http.post('/v1/observation-reports', payload, { timeout: 170000 })
+export const getObservationReport = (id, signal) => http.get(`/v1/observation-reports/${id}`, { signal })
+export const downloadObservationReport = (id) => http.get(`/v1/observation-reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
+export const observationPrintUrl = (id) => `${API_BASE_URL}/api/v1/observation-reports/${encodeURIComponent(id)}/export?export=html`
