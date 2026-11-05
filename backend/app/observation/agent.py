@@ -23,7 +23,6 @@ from .sources import SOURCES
 PROMPT_VERSION = "reefscope-observation-agent/v1"
 FORMATS = ("openai_chat", "anthropic_messages")
 MAX_RESPONSE_BYTES = 1024 * 1024
-MODEL_ID = re.compile(r"[A-Za-z0-9._:/@+-]{1,120}")
 API_KEY = re.compile(r"[\x21-\x7e]{8,400}")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 CITATION = re.compile(r"\[([A-Z0-9][A-Z0-9-]{1,30})\]")
@@ -137,7 +136,9 @@ def update(item, data):
         raise ValueError("invalid_api_format")
     base_url = normalize_url(data["base_url"]) if "base_url" in data else item.base_url
     model = data.get("model", item.model)
-    if not isinstance(model, str) or (model and not MODEL_ID.fullmatch(model.strip())):
+    # Gateways name models freely (spaces, brackets, CJK aliases). The ID only travels inside a JSON
+    # body, so the only rules are the column length and no control or line-break characters.
+    if not isinstance(model, str) or len(model.strip()) > 120 or not model.strip().isprintable():
         raise ValueError("invalid_model")
     timeout = data.get("timeout_seconds", item.timeout_seconds)
     if type(timeout) is not int or not 5 <= timeout <= 100:

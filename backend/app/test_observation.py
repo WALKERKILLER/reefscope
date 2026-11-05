@@ -167,8 +167,14 @@ class AgentConfigTests(ObservationFixture, TestCase):
         for body, code in [({"base_url": "ftp://x.example"}, "invalid_base_url"), ({"base_url": "https://u:p@x.example"}, "invalid_base_url"),
                            ({"base_url": "https://x.example/v1?k=1"}, "invalid_base_url"), ({"api_key": "sk-abc\r\nX-Evil: 1"}, "invalid_api_key"),
                            ({"api_format": "gemini"}, "invalid_api_format"), ({"timeout_seconds": 600}, "invalid_timeout"),
-                           ({"model": "bad model"}, "invalid_model"), ({"secret": 1}, "invalid_agent_config")]:
+                           ({"model": "bad\nmodel"}, "invalid_model"), ({"model": "m\u200b"}, "invalid_model"), ({"model": "m" * 121}, "invalid_model"), ({"secret": 1}, "invalid_agent_config")]:
             self.assertEqual(self.put(body).json()["error"]["code"], code, body)
+
+    def test_accepts_gateway_model_names(self):
+        for name in ("Qwen/Qwen3-235B-A22B-Instruct-2507", "claude-opus-4-1[1m]", "llama3.2:3b", "GLM 4.5 Air", "豆包-pro-32k",
+                     "arn:aws:bedrock:us-east-1:123456789012:inference-profile/us.anthropic.claude-sonnet-4-v1:0"):
+            self.assertEqual(self.put({"model": name}).json()["model"], name)
+        self.assertEqual(self.put({"model": "  gpt-5  "}).json()["model"], "gpt-5")
 
     def test_anthropic_endpoint_resolution(self):
         for base, expected in [("https://api.example", "https://api.example/v1/messages"), ("https://api.example/v1", "https://api.example/v1/messages"),

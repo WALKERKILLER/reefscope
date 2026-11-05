@@ -25,7 +25,7 @@ export function previewEndpoint(format, baseUrl) {
 
 export const AGENT_CONFIG_ERRORS = {
   invalid_base_url: '填写以 http:// 或 https:// 开头的地址，不含账号、查询参数或 #。',
-  invalid_model: '模型 ID 只能包含字母、数字和 . _ : / @ + -。',
+  invalid_model: '模型 ID 填写 1–120 个字符，不含换行、制表符等控制字符。',
   invalid_api_key: 'API Key 应为 8–400 个可见字符，不含空格。',
   invalid_timeout: '超时填写 5–100 秒。',
   invalid_max_output_tokens: '最大输出 tokens 填写 256–32000。',
