@@ -53,7 +53,7 @@ Status: Draft
 - 台账随会话延续：后续消息继承上一次完成 Run 的对话与台账。
 - 带时间的指标（时段、时间窗、采样帧时间、当前时刻）另记 `seek_s` 与 `task_id`，供大屏跳转。
 
-**审计**：回答和报告草稿用 `observation.agent.segments` 切分。未知指标 ID、未知资料 ID 和未用占位符的数字算未通过。报告草稿只能引用所选指标集内的 ID；保存时去掉集合前缀，再按报告自身的事实重建。
+**审计**：回答和报告草稿用 `observation.agent.segments` 切分。未知指标 ID、未知资料 ID 和未用占位符的数字算未通过。行首的有序列表编号不算数字。最终回答按 Markdown 子集渲染（不使用 `v-html`，链接只允许 http/https），审计片段保持原样；报告草稿为纯文本。报告草稿只能引用所选指标集内的 ID；保存时去掉集合前缀，再按报告自身的事实重建。
 
 **批准**：`POST /api/v1/agent-runs/{uuid}/decisions`，请求体 `{tool_call_id, decision: approve|reject, note}`。
 

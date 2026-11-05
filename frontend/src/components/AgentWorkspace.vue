@@ -89,7 +89,7 @@
                 <span v-if="step.payload.round" class="note tnum">第 {{ step.payload.round }} / {{ run.limits.revisions }} 次</span>
               </div>
               <div v-else-if="step.kind === 'plan'" class="line"><span class="step-title">{{ step.title }}</span><span class="note tnum">{{ step.payload.summary }}</span></div>
-              <p v-else-if="step.kind === 'message'" class="message">{{ step.payload.text }}</p>
+              <AgentMarkdown v-else-if="step.kind === 'message'" class="message" :parts="[{ text: step.payload.text }]" />
               <div v-else-if="step.kind === 'error'" class="line"><span class="step-title">{{ step.title }}</span><span class="note">{{ step.payload.error_text || RUN_ERRORS[step.payload.error] || step.payload.error }}</span></div>
               <div v-else class="line"><span class="step-title">{{ step.title }}</span></div>
             </li>
@@ -97,7 +97,7 @@
 
           <div v-if="run.answer" class="answer">
             <span class="eyebrow">Agent</span>
-            <p class="answer-text"><ReportSegments :parts="run.answer.segments" :metrics="run.ledger" :seek-task="seekTask" @seek="emit('seek', $event)" /></p>
+            <AgentMarkdown class="answer-text" :parts="run.answer.segments" :metrics="run.ledger" :seek-task="seekTask" @seek="emit('seek', $event)" />
             <p v-if="run.answer.audit.unverified_numbers.length" class="note">有 {{ run.answer.audit.unverified_numbers.length }} 处数字没有对应的平台指标，已标出，请勿直接引用。</p>
           </div>
 
@@ -166,6 +166,7 @@ import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconCircleDashed, 
   IconMessage2, IconPlayerPlay, IconPlayerStop, IconPlus, IconSend, IconShieldCheck, IconSparkles, IconTool, IconTrash, IconUserCheck } from '@tabler/icons-vue'
 import UiSelect from './ui/UiSelect.vue'
 import ReportSegments from './ReportSegments.vue'
+import AgentMarkdown from './AgentMarkdown.vue'
 import { listAgentSessions, createAgentSession, listTaskAgentSessions, createTaskAgentSession, getAgentSession, updateAgentSession, deleteAgentSession, sendAgentMessage,
   getAgentRun, decideAgentProposal, cancelAgentRun, listSites } from '../api'
 import { agentDialogOpen } from '../lib/reportAgent'
@@ -450,7 +451,7 @@ onBeforeUnmount(stopPolling)
 .status-approved .step-icon, .kind-plan .step-icon { color: var(--accent); }
 .line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; min-width: 0; min-height: 20px; }
 .step-title { flex: none; font-weight: 500; color: var(--ink-2); }
-.message { color: var(--ink-2); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.message { gap: 6px; color: var(--ink-2); line-height: 1.55; }
 .tool summary { display: flex; align-items: baseline; gap: 8px; min-width: 0; min-height: 20px; cursor: pointer; list-style: none; }
 .tool summary::-webkit-details-marker { display: none; }
 .tool summary .truncate { flex: 1; min-width: 0; }
@@ -471,7 +472,7 @@ onBeforeUnmount(stopPolling)
 .decide-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .outcome { display: flex; }
 .answer { display: flex; flex-direction: column; gap: 4px; }
-.answer-text { max-width: 68ch; font-size: var(--text-reading); line-height: 1.7; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.answer-text { max-width: 68ch; font-size: var(--text-reading); line-height: 1.7; color: var(--ink); }
 .run-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 26px; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-small); font-weight: 500; color: var(--ink-2); }
 .status.failed { color: var(--danger); }

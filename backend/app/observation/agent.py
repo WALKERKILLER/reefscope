@@ -29,6 +29,8 @@ API_KEY = re.compile(r"[\x21-\x7e]{8,400}")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 CITATION = re.compile(r"\[([A-Z0-9][A-Z0-9-]{1,30})\]")
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s*%)?")
+# Markdown ordered-list markers ("1." / "2)") at a line start are numbering, not data.
+LIST_MARKER = re.compile(r"(?m)^[ \t]*(\d{1,3}[.)])(?=[ \t])")
 SECTIONS = ("observations", "interpretation", "limitations", "next_steps")
 
 SYSTEM_PROMPT = """你是珊瑚礁视频观测报告的撰写助手。平台已经用确定性程序算好了全部指标；你只用简体中文解释这些结果，不计算、不估计、不补全任何数值。
@@ -299,7 +301,8 @@ def segments(text, metrics, audit):
     """Split text into plain, verified-metric, citation and unverified-number segments."""
     output, cursor = [], 0
     tokens = sorted([(m.start(), m.end(), "metric", m.group(1)) for m in PLACEHOLDER.finditer(text)] +
-                    [(m.start(), m.end(), "citation", m.group(1)) for m in CITATION.finditer(text)])
+                    [(m.start(), m.end(), "citation", m.group(1)) for m in CITATION.finditer(text)] +
+                    [(m.start(1), m.end(1), "marker", m.group(1)) for m in LIST_MARKER.finditer(text)])
 
     def plain(fragment):
         position = 0
@@ -316,7 +319,9 @@ def segments(text, metrics, audit):
         if start < cursor:
             continue
         plain(text[cursor:start])
-        if kind == "metric" and value in metrics:
+        if kind == "marker":
+            output.append({"text": value})
+        elif kind == "metric" and value in metrics:
             output.append({"text": metrics[value]["display"], "metric": value})
         elif kind == "metric":
             audit["unknown_metrics"].append(value)

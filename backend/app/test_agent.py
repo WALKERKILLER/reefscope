@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from app.agent import loop, providers
-from app.models import AgentRun, AnalysisRun, ObservationReport
+from app.models import AgentRun, AgentSession, AnalysisRun, ObservationReport
 from app.test_observation import ObservationFixture
 
 
@@ -213,6 +213,14 @@ class AgentTests(ObservationFixture, TestCase):
         self.assertIn({"text": "2–3 s", "metric": "T1.busiest.window"}, run.answer["segments"])
         polled = self.client.get(f"/api/v1/agent-runs/{run.pk}", {"after": 2}).json()
         self.assertTrue(all(step["index"] > 2 for step in polled["steps"]))
+
+    def test_markdown_list_numbering_is_not_audited_as_data(self):
+        ctx = loop.Context(AgentRun(session=AgentSession(site=self.site)))
+        ctx.metrics["S1.m"] = {"display": "2.00 尾/帧", "label": "平均"}
+        parts, audit = loop.audit_text(ctx, "## 结论\n1. 平均 {{S1.m}}\n  2) 峰值 7 条\n- 第 2 段")
+        self.assertEqual(audit["unverified_numbers"], ["2", "7"])
+        self.assertIn({"text": "1."}, parts)
+        self.assertIn({"text": "2)"}, parts)
 
     def test_anthropic_transcript_alternates_roles(self):
         transcript = [{"role": "user", "text": "a"}, {"role": "assistant", "text": "", "tool_calls": [{"id": "t1", "name": "x", "arguments": {}}]},
