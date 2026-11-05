@@ -267,7 +267,11 @@ def comparison(site, observed_on, current, settings):
 
 
 def build(site, observed_on, runs, environment):
-    """`runs` are completed AnalysisRuns, at most one per kind per video, in request order."""
+    """`runs` are completed AnalysisRuns, at most one per kind per video, in request order.
+
+    `site` may be None for an agent session on the monitoring wall that is not filed to a site yet;
+    such facts have no comparison and are never saved as a report.
+    """
     videos, by_task = [], {}
     for run in runs:
         if run.task_id not in by_task:
@@ -277,8 +281,8 @@ def build(site, observed_on, runs, environment):
         if kind in by_task[run.task_id]["runs"]:
             raise ValueError("duplicate_run_kind_for_video")
         by_task[run.task_id]["runs"][kind] = run
-    metrics = {"site.name": metric("观测站点", site.name, "text"), "site.observed_on": metric("观测日期", observed_on.isoformat(), "text"),
-               "site.depth": metric("站点水深", site.depth_m, "meters", reason="not_provided")}
+    metrics = {"site.name": metric("观测站点", site.name if site else "未归档", "text"), "site.observed_on": metric("观测日期", observed_on.isoformat(), "text"),
+               "site.depth": metric("站点水深", site.depth_m if site else None, "meters", reason="not_provided")}
     pools = {"fish": [], "coral": []}
     settings = {"models": {}, "analysis": {}, "camera_motion": []}
     video_facts = []
@@ -313,7 +317,7 @@ def build(site, observed_on, runs, environment):
     for item in metrics.values():
         item["display"] = display(item)
         item["reason_text"] = REASONS.get(item["reason"], item["reason"])
-    compared = comparison(site, observed_on, metrics, settings)
+    compared = comparison(site, observed_on, metrics, settings) if site else None
     for key, row in (compared or {"rows": {}})["rows"].items():
         metrics[f"prev.{key}"] = metric(f"上次观测 · {row['label']}", row["previous"], row["unit"], reason="not_recorded") | \
             {"display": display({"value": row["previous"], "unit": row["unit"]}), "reason_text": None}
@@ -326,7 +330,7 @@ def build(site, observed_on, runs, environment):
     model_ids = sorted({run.model_id for run in runs})
     evaluated = set(EvaluationRun.objects.filter(model_id__in=model_ids).values_list("model_id", flat=True))
     return {
-        "schema": SCHEMA, "site": {"id": str(site.pk), "name": site.name, "depth_m": site.depth_m},
+        "schema": SCHEMA, "site": {"id": str(site.pk), "name": site.name, "depth_m": site.depth_m} if site else None,
         "observed_on": observed_on.isoformat(), "videos": video_facts, "settings": settings, "environment": environment,
         "metrics": metrics, "comparison": compared, "limitations": limitations,
         "model_quality": [{"model_id": model_id, "independent_evaluation": model_id in evaluated} for model_id in model_ids],

@@ -11,7 +11,7 @@
       <h2 id="observation-report-title">{{ report.title }}</h2>
       <div class="status-line">
         <span class="tag tag-warn"><IconEye />待人工审阅</span>
-        <span class="tag" :class="AGENT_STATUS[agent.status].tone">{{ AGENT_STATUS[agent.status].label }}</span>
+        <span class="tag" :class="AGENT_STATUS[agent.status].tone">{{ agent.mode === 'agent_run' ? 'Agent 起草' : AGENT_STATUS[agent.status].label }}</span>
         <span class="note">生成于 <span class="tnum">{{ formatDateTime(report.created_at) }}</span> · <span class="mono">{{ shortId(report.report_id) }}</span></span>
       </div>
     </header>
@@ -36,7 +36,7 @@
             <h3><span class="num tnum">{{ String(index + 1).padStart(2, '0') }}</span>{{ section.title }}</h3>
 
             <template v-if="section.key === 'agent' && agent.status === 'generated'">
-              <p class="note">以下内容由语言模型撰写，需要人工审阅。带下划虚线的数值由平台按指标填入；<mark class="legend">黄色标记</mark>的数字是模型自行写出的，没有经过核对。</p>
+              <p class="note">{{ agent.mode === 'agent_run' ? '以下内容由观测分析 Agent 起草，经平台审计并由你批准保存。' : '以下内容由语言模型撰写，需要人工审阅。' }}带下划虚线的数值由平台按指标填入；<mark class="legend">黄色标记</mark>的数字是模型自行写出的，没有经过核对。</p>
               <div v-if="auditNotes.length" class="ui-banner ui-banner-warn"><IconAlertTriangle /><span>{{ auditNotes.join(' ') }}</span></div>
               <p class="prose"><ReportSegments :parts="agent.narrative.summary" :metrics="metrics" /></p>
               <template v-for="group in narrativeGroups" :key="group.key">

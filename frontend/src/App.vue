@@ -16,11 +16,14 @@
           </div>
         </nav>
         <div class="top-actions">
+          <UiTooltip v-if="activeView === 'monitor'" text="与 Agent 讨论正在看的视频" shortcut="A">
+            <button class="btn btn-sm assistant-toggle" :aria-pressed="wallPanel === 'agent'" @click="toggleAssistant"><IconSparkles />观测助手</button>
+          </UiTooltip>
           <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
             <button class="btn btn-ghost btn-icon" aria-label="全屏展示" @click="toggleFullscreen"><IconMaximize /></button>
           </UiTooltip>
-          <UiTooltip text="AI 解读服务">
-            <button class="btn btn-ghost btn-icon" aria-label="AI 解读服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
+          <UiTooltip text="模型服务">
+            <button class="btn btn-ghost btn-icon" aria-label="模型服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
           </UiTooltip>
           <UiTooltip :text="isDarkTheme ? '切换到浅色' : '切换到深色'">
             <button class="btn btn-ghost btn-icon" :aria-label="isDarkTheme ? '切换到浅色' : '切换到深色'" @click="isDarkTheme = !isDarkTheme">
@@ -31,7 +34,7 @@
       </header>
 
       <main class="main">
-        <div v-show="activeView !== 'records' && activeView !== 'reports'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor' }" :style="layoutStyle">
+        <div v-show="activeView !== 'records' && activeView !== 'reports'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor', 'agent-open': activeView === 'monitor' && wallPanel === 'agent' }" :style="layoutStyle">
           <div v-show="activeView === 'console'" class="area-library">
             <LibraryPanel
               :history="history"
@@ -124,7 +127,17 @@
           </div>
 
           <div v-if="activeView === 'monitor'" class="area-side">
-            <WallEvidence :analysis="analysisState" :coral="coralState" @open-workspace="activeView = 'console'" />
+            <UiSegmented v-model="wallPanel" :options="WALL_PANELS" aria-label="右侧面板" block class="side-switch" />
+            <WallEvidence v-show="wallPanel === 'evidence'" :analysis="analysisState" :coral="coralState" @open-workspace="activeView = 'console'" />
+            <section v-if="wallPanel === 'agent'" class="wall-agent">
+              <AgentWorkspace v-if="currentTaskId" dock :task-id="currentTaskId" :context="playbackContext" :enabled="!!agentConfig?.enabled"
+                              @seek="handleTimelineClick" @open-report="openReportFromWall" />
+              <div v-else class="wall-agent-empty">
+                <p class="empty-title">先打开一段视频</p>
+                <p class="note">观测助手围绕正在看的视频工作：读取当前画面和分析结果，回答里的时刻可以点击跳转。</p>
+                <button class="btn btn-sm" @click="activeView = 'console'">前往工作台</button>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -148,7 +161,7 @@
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
 import { TooltipProvider } from 'reka-ui'
-import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh, IconReportAnalytics, IconSettings } from '@tabler/icons-vue'
+import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh, IconReportAnalytics, IconSettings, IconSparkles } from '@tabler/icons-vue'
 import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun, getHealth } from './api'
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
@@ -166,13 +179,14 @@ import { toast } from './lib/toast'
 import { confirmDialog, promptDialog } from './lib/dialogs'
 import { seekTo } from './lib/playback'
 import { shortId } from './lib/format'
-import { agentDialogOpen } from './lib/reportAgent'
+import { agentConfig, agentDialogOpen, loadAgentConfig, requestedReport } from './lib/reportAgent'
 const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
 // The monitoring wall loads with its first visit; the workspace never downloads it.
 const MonitorView = defineAsyncComponent(() => import('./components/MonitorView.vue'))
 const WallEvidence = defineAsyncComponent(() => import('./components/WallEvidence.vue'))
 const WallInsights = defineAsyncComponent(() => import('./components/wall/WallInsights.vue'))
 const ReportsView = defineAsyncComponent(() => import('./components/ReportsView.vue'))
+const AgentWorkspace = defineAsyncComponent(() => import('./components/AgentWorkspace.vue'))
 const AgentSettingsDialog = defineAsyncComponent(() => import('./components/AgentSettingsDialog.vue'))
 
 const views = [
@@ -285,9 +299,26 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.()
 }
 function onKeydown(event) {
-  if (activeView.value !== 'monitor' || event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return
+  const key = event.key.toLowerCase()
+  if (activeView.value !== 'monitor' || !['f', 'a'].includes(key) || event.metaKey || event.ctrlKey || event.altKey) return
   if (event.target.closest?.('input, textarea, select, [contenteditable], .art-video-player')) return
-  toggleFullscreen()
+  if (key === 'f') toggleFullscreen()
+  else toggleAssistant()
+}
+
+// --- Observer assistant on the wall ---
+const WALL_PANELS = [{ value: 'evidence', label: '证据' }, { value: 'agent', label: '观测助手' }]
+const wallPanel = ref('evidence')
+watch(wallPanel, panel => { if (panel === 'agent' && !agentConfig.value) loadAgentConfig() })
+function toggleAssistant() {
+  wallPanel.value = wallPanel.value === 'agent' ? 'evidence' : 'agent'
+  if (wallPanel.value === 'agent') nextTick(() => document.querySelector('.wall-agent textarea:not(:disabled)')?.focus())  // when already mounted
+}
+// Sent with each message so the agent knows what the observer is looking at.
+const playbackContext = () => ({ current_time_s: Math.max(0, Number(currentTime.value) || 0), fish_run_id: analysisState.value?.runId || null, coral_run_id: coralState.value?.runId || null })
+function openReportFromWall(id) {
+  requestedReport.value = id
+  activeView.value = 'reports'
 }
 
 // --- Health ---
@@ -696,7 +727,13 @@ onBeforeUnmount(() => {
 .panel { flex: 1 1 0; min-height: 0; }
 .area-head { grid-area: head; min-width: 0; }
 .area-center { grid-area: center; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
-.area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; }
+.area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.side-switch { flex: none; }
+/* The assistant takes the evidence column's place; the video keeps playing beside it. */
+.layout.wall.agent-open { grid-template-columns: minmax(240px, 19%) minmax(0, 1fr) minmax(360px, 30%); }
+.wall-agent { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; border-radius: var(--radius); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.wall-agent-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.assistant-toggle[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); box-shadow: none; }
 .grow { flex: 1; min-height: 0; }
 .handle { position: relative; cursor: col-resize; touch-action: none; }
 .handle-left { grid-area: hl; }
@@ -725,7 +762,8 @@ onBeforeUnmount(() => {
   .layout { grid-template-columns: 232px 8px minmax(0, 1fr) 8px 312px; }
 }
 @media (max-width: 1200px) and (min-width: 901px) {
-  .layout.wall { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall, .layout.wall.agent-open { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall.agent-open { grid-template-columns: minmax(0, 1fr) minmax(340px, 40%); }
   .layout.wall .area-left { min-height: auto; }
 }
 @media (max-width: 900px) {
@@ -737,6 +775,7 @@ onBeforeUnmount(() => {
   .area-center { flex: none; height: 62vh; min-height: 360px; }
   .area-inspector { flex: none; min-height: 560px; }
   .area-side, .area-left { flex: none; }
+  .wall-agent { height: 78vh; min-height: 480px; }
   .statusbar .faint { display: none; }
 }
 @media (max-width: 640px) { .brand-name { display: none; } }

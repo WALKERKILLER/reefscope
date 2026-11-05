@@ -107,7 +107,7 @@ def list_item(item):
     metrics = item.payload["facts"]["metrics"]
     pick = lambda key: metrics[key]["display"] if key in metrics else None
     return {"id": str(item.pk), "observed_on": item.observed_on, "created_at": item.created_at, "title": item.payload["title"],
-            "agent_status": item.payload["agent"]["status"], "human_review_status": item.payload["human_review_status"],
+            "agent_status": "agent_run" if item.payload["agent"].get("mode") == "agent_run" else item.payload["agent"]["status"], "human_review_status": item.payload["human_review_status"],
             "video_count": len(item.payload["facts"]["videos"]), "mean_count": pick("site.fish.mean_count"),
             "bleached_coral_fraction": pick("site.coral.bleached_coral_fraction")}
 

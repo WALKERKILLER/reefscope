@@ -73,3 +73,4 @@ A decision starts `Proposed`. Once implemented, its status becomes `Accepted` an
 - [0004：前端设计系统采用 Reka UI 与 Tabler Icons](0004-frontend-design-system.md)
 - [0005：珊瑚推理沿用交付代码并在平台运行时执行](0005-coral-delivered-inference.md)
 - [0006：观测报告的 AI 解读只写占位符，同步调用用户配置的服务](0006-observation-report-agent.md)
+- [0007：观测 Agent 在独立 Worker 中运行工具循环，写操作经人工批准](0007-observation-agent-loop.md)

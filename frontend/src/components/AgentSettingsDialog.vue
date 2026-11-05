@@ -3,8 +3,8 @@
     <DialogPortal>
       <DialogOverlay class="ui-overlay" />
       <DialogContent class="ui-dialog agent-dialog" @open-auto-focus="reset">
-        <DialogTitle class="ui-dialog-title">AI 解读服务</DialogTitle>
-        <DialogDescription class="ui-dialog-desc">连接兼容 OpenAI Chat Completions 或 Anthropic Messages 的服务，为观测报告撰写文字解读。报告中的数值始终由平台计算。</DialogDescription>
+        <DialogTitle class="ui-dialog-title">模型服务</DialogTitle>
+        <DialogDescription class="ui-dialog-desc">连接兼容 OpenAI Chat Completions 或 Anthropic Messages 的服务，供 Agent 分析和报告文字解读使用；Agent 需要服务支持工具调用。报告中的数值始终由平台计算。</DialogDescription>
         <form class="form" novalidate @submit.prevent="save">
           <div class="field">
             <span id="agent-format">接口格式</span>
@@ -34,7 +34,7 @@
           </div>
           <div class="toggle">
             <UiSwitch id="agent-enabled" v-model="draft.enabled" />
-            <label for="agent-enabled">生成报告时提供 AI 解读</label>
+            <label for="agent-enabled">启用模型服务</label>
           </div>
           <div class="ui-banner ui-banner-info"><IconInfoCircle /><span>生成报告时，所选视频的统计值、站点名称、观测日期和录入的环境数据会发送到这个服务。视频画面、文件名和坐标不会发送。</span></div>
           <p v-if="error" class="error" role="alert">{{ error }}</p>
@@ -107,7 +107,7 @@ function save() {
   const payload = Object.fromEntries(FIELDS.map(key => [key, draft[key]]))
   if (draft.api_key.trim()) payload.api_key = draft.api_key.trim()
   result.value = null
-  return submit(payload, '已保存 AI 解读设置')
+  return submit(payload, '已保存模型服务设置')
 }
 
 function clearKey() {

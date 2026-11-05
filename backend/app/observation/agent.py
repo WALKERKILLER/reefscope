@@ -23,11 +23,14 @@ from .sources import SOURCES
 PROMPT_VERSION = "reefscope-observation-agent/v1"
 FORMATS = ("openai_chat", "anthropic_messages")
 MAX_RESPONSE_BYTES = 1024 * 1024
-MODEL_ID = re.compile(r"[A-Za-z0-9._:/@+-]{1,120}")
+# CDN firewalls in front of many gateways (Cloudflare error 1010) reject the default "Python-urllib/x.y" agent.
+USER_AGENT = "ReefScope/1.0"
 API_KEY = re.compile(r"[\x21-\x7e]{8,400}")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")
 CITATION = re.compile(r"\[([A-Z0-9][A-Z0-9-]{1,30})\]")
 NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s*%)?")
+# Markdown ordered-list markers ("1." / "2)") at a line start are numbering, not data.
+LIST_MARKER = re.compile(r"(?m)^[ \t]*(\d{1,3}[.)])(?=[ \t])")
 SECTIONS = ("observations", "interpretation", "limitations", "next_steps")
 
 SYSTEM_PROMPT = """你是珊瑚礁视频观测报告的撰写助手。平台已经用确定性程序算好了全部指标；你只用简体中文解释这些结果，不计算、不估计、不补全任何数值。
@@ -51,7 +54,8 @@ SYSTEM_PROMPT = """你是珊瑚礁视频观测报告的撰写助手。平台已�
 
 ERRORS = {
     "agent_disabled": "AI 解读未启用。", "agent_not_configured": "请先填写接口地址和模型。", "agent_key_missing": "请先保存 API Key。",
-    "agent_auth_failed": "服务拒绝了这个 API Key。检查 Key 是否有效、是否有该模型的权限。",
+    "agent_auth_failed": "服务拒绝了这个 API Key。检查 Key 是否有效。",
+    "agent_forbidden": "服务拒绝了请求（HTTP 403）。检查 Key 是否有该模型的权限；如果其他客户端可以正常使用，可能是服务前的防火墙拦截了本平台，请联系服务方。",
     "agent_endpoint_not_found": "接口地址不存在。检查 Base URL 和接口格式是否匹配。",
     "agent_rate_limited": "请求过于频繁或额度不足，稍后再试。", "agent_request_rejected": "服务拒绝了请求。检查模型名称是否正确。",
     "agent_upstream_error": "服务端出错，稍后再试。", "agent_http_error": "服务返回了意外的 HTTP 状态。",
@@ -137,7 +141,9 @@ def update(item, data):
         raise ValueError("invalid_api_format")
     base_url = normalize_url(data["base_url"]) if "base_url" in data else item.base_url
     model = data.get("model", item.model)
-    if not isinstance(model, str) or (model and not MODEL_ID.fullmatch(model.strip())):
+    # Gateways name models freely (spaces, brackets, CJK aliases). The ID only travels inside a JSON
+    # body, so the only rules are the column length and no control or line-break characters.
+    if not isinstance(model, str) or len(model.strip()) > 120 or not model.strip().isprintable():
         raise ValueError("invalid_model")
     timeout = data.get("timeout_seconds", item.timeout_seconds)
     if type(timeout) is not int or not 5 <= timeout <= 100:
@@ -175,7 +181,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 def post(url, headers, body, timeout):
     """POST JSON with no redirects, an overall deadline and a response size cap."""
     request = urllib.request.Request(url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"), method="POST",
-                                     headers={"Content-Type": "application/json", "Accept": "application/json", **headers})
+                                     headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": USER_AGENT, **headers})
     deadline = time.monotonic() + timeout
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=timeout) as response:
@@ -189,7 +195,7 @@ def post(url, headers, body, timeout):
                 chunks.append(chunk)
     except urllib.error.HTTPError as exc:
         status = exc.code
-        code = {401: "agent_auth_failed", 403: "agent_auth_failed", 404: "agent_endpoint_not_found", 429: "agent_rate_limited"}.get(status)
+        code = {401: "agent_auth_failed", 403: "agent_forbidden", 404: "agent_endpoint_not_found", 429: "agent_rate_limited"}.get(status)
         if code is None:
             code = "agent_redirect_refused" if 300 <= status < 400 else "agent_request_rejected" if status in (400, 413, 422) else \
                 "agent_upstream_error" if status >= 500 else "agent_http_error"
@@ -295,7 +301,8 @@ def segments(text, metrics, audit):
     """Split text into plain, verified-metric, citation and unverified-number segments."""
     output, cursor = [], 0
     tokens = sorted([(m.start(), m.end(), "metric", m.group(1)) for m in PLACEHOLDER.finditer(text)] +
-                    [(m.start(), m.end(), "citation", m.group(1)) for m in CITATION.finditer(text)])
+                    [(m.start(), m.end(), "citation", m.group(1)) for m in CITATION.finditer(text)] +
+                    [(m.start(1), m.end(1), "marker", m.group(1)) for m in LIST_MARKER.finditer(text)])
 
     def plain(fragment):
         position = 0
@@ -312,7 +319,9 @@ def segments(text, metrics, audit):
         if start < cursor:
             continue
         plain(text[cursor:start])
-        if kind == "metric" and value in metrics:
+        if kind == "marker":
+            output.append({"text": value})
+        elif kind == "metric" and value in metrics:
             output.append({"text": metrics[value]["display"], "metric": value})
         elif kind == "metric":
             audit["unknown_metrics"].append(value)

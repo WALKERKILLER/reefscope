@@ -97,12 +97,14 @@ def agent_section(agent):
         return {"key": "agent", "title": "AI 解读", "rows": meta, "evidence": None,
                 "paragraphs": [f"AI 解读未生成：{agent.get('error_text') or agent['error_code']}上文的确定性结果不受影响。"]}
     narrative, audit = agent["narrative"], agent["audit"]
-    paragraphs = ["以下内容由语言模型撰写，待人工审阅。数值由平台按指标 ID 填入；标注“未核对”的数字是模型自行写出的，没有经过核对。", text(narrative["summary"])]
+    by_agent = agent.get("mode") == "agent_run"
+    lead = "以下内容由观测分析 Agent 起草，经平台审计并由用户批准保存。" if by_agent else "以下内容由语言模型撰写，待人工审阅。"
+    paragraphs = [lead + "数值由平台按指标 ID 填入；标注“未核对”的数字是模型自行写出的，没有经过核对。", text(narrative["summary"])]
     for name, role in ROLES.items():
         paragraphs.extend(f"{role}：{text(entry)}" for entry in narrative[name])
     if audit["unknown_metrics"] or audit["unknown_citations"]:
         paragraphs.append(f"模型引用了不存在的指标或资料，已移除：{', '.join(audit['unknown_metrics'] + audit['unknown_citations'])}。")
-    return {"key": "agent", "title": "AI 解读", "rows": meta, "evidence": None, "paragraphs": paragraphs}
+    return {"key": "agent", "title": "Agent 解读" if by_agent else "AI 解读", "rows": meta, "evidence": None, "paragraphs": paragraphs}
 
 
 def make(facts, agent):

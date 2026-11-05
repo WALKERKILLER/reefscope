@@ -4,11 +4,19 @@ from .health import health
 from .analysis.report_api import ModelHistory, ReportDetail, ReportExport, EvaluationDetail
 from .analysis.api import Models, TaskRuns, RunDetail, Retry, Tracks, Heatmap, Summary, Masks
 
+from .agent import api as agent
 from .observation import api as observation
 
 from .views import PipelineConfigView, ProcessTaskView, TaskBatchActionView, TaskDetailView, TaskListView, UploadVideoView
 
 urlpatterns = [
+    path("v1/sites/<uuid:site_id>/agent-sessions", agent.SiteSessions.as_view(), name="agent-sessions"),
+    path("v1/tasks/<int:task_id>/agent-sessions", agent.TaskSessions.as_view(), name="task-agent-sessions"),
+    path("v1/agent-sessions/<uuid:session_id>", agent.SessionDetail.as_view(), name="agent-session"),
+    path("v1/agent-sessions/<uuid:session_id>/messages", agent.SessionMessages.as_view(), name="agent-session-messages"),
+    path("v1/agent-runs/<uuid:run_id>", agent.RunDetail.as_view(), name="agent-run"),
+    path("v1/agent-runs/<uuid:run_id>/decisions", agent.RunDecision.as_view(), name="agent-run-decisions"),
+    path("v1/agent-runs/<uuid:run_id>/cancel", agent.RunCancel.as_view(), name="agent-run-cancel"),
     path("v1/report-agent/config", observation.AgentConfig.as_view(), name="report-agent-config"),
     path("v1/report-agent/test", observation.AgentTest.as_view(), name="report-agent-test"),
     path("v1/sites", observation.Sites.as_view(), name="observation-sites"),
