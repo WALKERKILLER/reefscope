@@ -1,7 +1,7 @@
 <template>
   <aside class="library" aria-label="视频库" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop" :class="{ dragging }">
-    <header class="head">
-      <h2>视频库 <span class="count tnum">{{ history.length }}</span></h2>
+    <header class="panel-head">
+      <h2 class="panel-title">视频库<span class="count tnum">{{ history.length }}</span></h2>
       <div class="tools">
         <UiTooltip :text="selectionMode ? '退出多选' : '多选'">
           <button class="btn btn-ghost btn-sm btn-icon" :class="{ 'is-on': selectionMode }" :aria-pressed="selectionMode" aria-label="多选" @click="emit('selection-mode-change', !selectionMode)"><IconChecks /></button>
@@ -38,13 +38,13 @@
       <p class="note">上传 MP4 后，视频与每次分析会保存在本地后端。也可以把文件拖到这里。</p>
       <button class="btn btn-sm" @click="fileInput?.click()"><IconUpload />上传 MP4</button>
     </div>
-    <p v-else-if="!filtered.length" class="note empty-filter">没有名称包含“{{ query }}”的视频。<button class="link" @click="query = ''">清除筛选</button></p>
+    <p v-else-if="!filtered.length" class="note empty-filter">没有名称包含“{{ query }}”的视频。<button class="ui-link" @click="query = ''">清除筛选</button></p>
 
     <div v-if="selectionMode" class="batch">
       <span class="tnum">已选 {{ selectedIds.length }} 个</span>
       <div class="batch-actions">
         <button class="btn btn-sm" :disabled="!selectedIds.length" @click="emit('file-batch-action', { action: 'rerun' })">重新分析</button>
-        <button class="btn btn-sm" :disabled="!selectedIds.length" @click="emit('file-batch-action', { action: 'copy' })">复制</button>
+        <button class="btn btn-sm" :disabled="!selectedIds.length" @click="emit('file-batch-action', { action: 'copy' })">创建副本</button>
         <button class="btn btn-sm btn-danger" :disabled="!selectedIds.length" @click="emit('file-batch-action', { action: 'delete' })">删除</button>
       </div>
     </div>
@@ -77,7 +77,7 @@ const dragging = ref(false)
 const fileInput = ref(null)
 const menuItems = [
   { key: 'rerun', label: '重新分析', icon: IconRefresh },
-  { key: 'copy', label: '复制', icon: IconCopy },
+  { key: 'copy', label: '创建副本', icon: IconCopy },
   { key: 'rename', label: '重命名', icon: IconPencil },
   { separator: true, key: 'sep' },
   { key: 'delete', label: '删除', icon: IconTrash, danger: true }
@@ -107,9 +107,7 @@ function onDrop(event) {
 <style scoped>
 .library { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); transition: box-shadow 150ms var(--ease); }
 .library.dragging { box-shadow: inset 0 0 0 1.5px var(--accent); }
-.head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 8px 16px; }
-h2 { font-size: var(--text-title); font-weight: 600; }
-.count { margin-inline-start: 4px; font-size: var(--text-small); font-weight: 400; color: var(--ink-3); }
+.count { margin-inline-start: -4px; font-size: var(--text-small); font-weight: 400; color: var(--ink-3); }
 .tools { display: flex; gap: 4px; }
 .is-on { color: var(--accent); background: var(--accent-soft); }
 .search { position: relative; margin: 0 12px 8px; }
@@ -131,10 +129,8 @@ h2 { font-size: var(--text-title); font-weight: 600; }
 .more { opacity: 0; margin-inline-end: 4px; }
 .item:hover .more, .item.active .more, .more:focus-visible, .more[data-state=open] { opacity: 1; }
 .empty { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 8px 16px; }
-.empty-title { font-weight: 500; }
 .empty .btn { margin-top: 6px; }
 .empty-filter { padding: 8px 16px; }
-.link { border: 0; background: none; font: inherit; color: var(--accent); cursor: pointer; padding: 0; }
 .batch { display: flex; flex-direction: column; gap: 8px; margin: 0 8px 8px; padding: 10px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); font-size: var(--text-small); }
 .batch-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .foot { padding: 6px 8px 8px; box-shadow: inset 0 1px 0 var(--line); }

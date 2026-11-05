@@ -1,6 +1,6 @@
 <template>
   <div class="editor" @keydown="onKeydown">
-    <header class="bar">
+    <header class="panel-head ruled bar">
       <div class="title">
         <IconAdjustmentsHorizontal class="title-icon" />
         <span class="name" :title="fileName">{{ fileName }}</span>
@@ -217,7 +217,7 @@ function onKeydown(event) {
 
 <style scoped>
 .editor { display: flex; flex-direction: column; height: 100%; min-height: 0; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; container-type: inline-size; }
-.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 44px; flex: none; padding: 0 8px 0 12px; box-shadow: inset 0 -1px 0 var(--line); white-space: nowrap; }
+.bar { white-space: nowrap; }
 .title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .title-icon { flex: none; color: var(--ink-3); }
 .name { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: 500; font-family: var(--font-mono); font-size: var(--text-small); }

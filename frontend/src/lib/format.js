@@ -19,7 +19,7 @@ export function metricValue(metric, digits = 3) {
 export const MISSING_REASONS = {
   missing_independent_ground_truth: '缺少独立测试真值',
   missing_manual_identity_ground_truth: '缺少人工 ID 真值',
-  no_coral_model_or_benthic_roi: '尚无珊瑚分割模型与底栖 ROI',
+  no_coral_model_or_benthic_roi: '需要珊瑚分析与经批准的底栖 ROI',
   requires_approved_benthic_roi: '需要经批准的底栖 ROI',
   no_local_bleached_ground_truth: '缺少本地白化真值',
   no_sampled_frames: '窗口内没有采样帧',
