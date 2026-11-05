@@ -74,4 +74,5 @@ Status: Draft
 
 ## Evidence
 
-Pending until implementation.
+- 后端（切片 2）：`manage.py test` 31 项通过，`makemigrations --check` 无变更。本地 RTX 4060 Laptop 注册交付权重并完成授权 4K 视频的 coral Run：30 个采样帧，全部区分背景，无白化预测；每帧约 0.97 s，峰值显存约 1.3 GB；设备 `cuda:0`、精度 BF16。适配器掩膜与交付命令行逐像素一致；平台与交付验证运行时的差异见 [0005](../adr/0005-coral-delivered-inference.md)。
+- 前端（切片 3）：待补。

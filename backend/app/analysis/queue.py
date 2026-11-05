@@ -17,9 +17,12 @@ def expire_runs():
     )
 
 
-def claim_run():
+def claim_run(kind=None):
     expire_runs()
-    for run_id in AnalysisRun.objects.filter(status="queued", attempt__lt=MAX_ATTEMPTS).order_by("created_at").values_list("id", flat=True)[:32]:
+    queued = AnalysisRun.objects.filter(status="queued", attempt__lt=MAX_ATTEMPTS)
+    if kind:
+        queued = queued.filter(model__kind=kind)
+    for run_id in queued.order_by("created_at").values_list("id", flat=True)[:32]:
         token = uuid4()
         now = timezone.now()
         changed = AnalysisRun.objects.filter(pk=run_id, status="queued", attempt__lt=MAX_ATTEMPTS).update(

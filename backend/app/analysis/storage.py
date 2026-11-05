@@ -1,6 +1,7 @@
 """Private Run artifacts, outside the directly served media tree."""
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -41,11 +42,15 @@ def write_json(path, payload):
     temporary.replace(path)
 
 
+REQUIRED = {"fish": {"tracks.jsonl", "summary.json"}, "coral": {"frames.jsonl", "summary.json"}}
+MASK = re.compile(r"masks/\d{8}\.png")
+
+
 def artifact(run, name):
-    if name not in ("tracks.jsonl", "manifest.json", "summary.json") or run.status != "completed":
+    if not (name in ("tracks.jsonl", "frames.jsonl", "manifest.json", "summary.json") or MASK.fullmatch(name)) or run.status != "completed":
         raise ValueError("artifact_unavailable")
     path = attempt_directory(run) / name
-    if path.is_symlink() or not path.is_file():
+    if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
         raise ValueError("artifact_unavailable")
     return path
 
@@ -58,10 +63,19 @@ def verify_artifacts(output, run):
     if manifest.get("run_id") != str(run.pk) or manifest.get("attempt") != run.attempt:
         raise ValueError("invalid_artifacts")
     expected = manifest.get("artifacts", {})
-    if set(expected) != {"tracks.jsonl", "summary.json"}:
+    required = REQUIRED[run.model.kind]
+    masks = set(expected) - required if isinstance(expected, dict) else set()
+    if not isinstance(expected, dict) or not required <= set(expected) or (masks and run.model.kind != "coral") or not all(MASK.fullmatch(name) for name in masks):
+        raise ValueError("invalid_artifacts")
+    if (output / "masks").is_symlink():
         raise ValueError("invalid_artifacts")
     for name, digest in expected.items():
         path = output / name
         if path.is_symlink() or not path.is_file() or file_hash(path) != digest:
+            raise ValueError("invalid_artifacts")
+    if run.model.kind == "coral":
+        # Every published mask is indexed by exactly one frame record, and every record's mask is published.
+        lines = (output / "frames.jsonl").read_text(encoding="utf-8").splitlines()
+        if sorted(json.loads(line)["mask"] for line in lines) != sorted(masks) or not masks:
             raise ValueError("invalid_artifacts")
     return json.loads((output / "summary.json").read_text(encoding="utf-8"))

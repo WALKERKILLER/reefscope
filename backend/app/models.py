@@ -33,6 +33,9 @@ class ModelVersion(models.Model):
     sha256 = models.CharField(max_length=64)
     labels = models.JSONField()
     framework_version = models.CharField(max_length=40)
+    # A Run's kind is its model's kind; fish and coral checkpoints never share an adapter.
+    kind = models.CharField(max_length=12, default="fish")
+    metadata = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
 

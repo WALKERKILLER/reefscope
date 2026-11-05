@@ -20,4 +20,6 @@ MVP 文档与 fixture 来自用户提供的 `sitp-mvp-v2-research-20261021.zip`�
 
 科研方案的资料来源见 [研究来源](../mvp/11-sources.md)。Ultralytics、CoralscapesV2、SAM、VLM 辅助工具和各预训练权重分别核对代码、权重、数据、再分发与用途条款。不得因代码仓库可访问就推断模型可以分发。
 
-每次真实实验在受控 artifact 存储记录 source、version、sha256、license、用途与审批状态；公开导出仅使用授权且脱敏的证据。当前未提供任何权重或实测精度。
+每次真实实验在受控 artifact 存储记录 source、version、sha256、license、用途与审批状态；公开导出仅使用授权且脱敏的证据。权重只保存在本地受信任目录，不进入仓库。
+
+珊瑚推理代码 `backend/app/analysis/vendor/coral_model.py` 来自组员交付包，逐字节保留，来源与上游模型许可见 [vendor 说明](../../backend/app/analysis/vendor/README.md)。上游 CoralscapesV2 SegFormer-B5 权重为 Apache-2.0；交付方的测试指标属于对已查看测试集的回归复核，不是本仓库测得的独立精度。
