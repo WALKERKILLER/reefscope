@@ -4,10 +4,10 @@
       <header class="page-head">
         <div>
           <h1>观测报告</h1>
-          <p class="note">按观测点归档视频分析结果，生成可追溯的报告。数值由平台计算；AI 解读可选，需要人工审阅。</p>
+          <p class="note">按观测点归档视频分析结果。Agent 用平台工具取证、复核并起草报告，保存和排队分析前会请你批准；所有数值由平台计算。</p>
         </div>
         <div class="head-actions">
-          <button class="btn" @click="agentDialogOpen = true"><IconSparkles />AI 解读：{{ agentLabel }}</button>
+          <button class="btn" @click="agentDialogOpen = true"><IconSparkles />模型服务：{{ agentLabel }}</button>
           <button class="btn btn-primary" @click="openSite()"><IconPlus />新建观测点</button>
         </div>
       </header>
@@ -41,7 +41,8 @@
           <ObservationReportViewer v-if="report" :report="report" @back="report = null" />
           <p v-else-if="reportLoading" class="note" role="status">正在打开报告…</p>
 
-          <template v-else-if="site">
+          <!-- Kept mounted while a report is open so an agent session and its polling survive the round trip. -->
+          <div v-if="site" v-show="!report && !reportLoading" class="site-pane">
             <section class="ui-card" aria-labelledby="site-title">
               <header class="ui-card-head">
                 <h2 id="site-title">{{ site.name }}</h2>
@@ -58,9 +59,14 @@
               <p v-if="site.notes" class="prose">{{ site.notes }}</p>
             </section>
 
+            <UiTabs v-model="tab" :items="tabs" aria-label="观测点工作区" class="site-tabs">
+            <template #agent>
+            <AgentWorkspace :site-id="site.id" :enabled="!!agentConfig?.enabled" @open-report="openReport" @report-saved="refreshSite" />
+            </template>
+            <template #manual>
             <section class="ui-card" aria-labelledby="new-report-title">
               <header class="ui-card-head">
-                <h2 id="new-report-title">生成报告</h2>
+                <h2 id="new-report-title">手动生成报告</h2>
                 <span class="note tnum">已选 {{ selectedRuns.length }} / {{ MAX_RUNS }} 项分析</span>
               </header>
               <label class="field date"><span>观测日期</span><input v-model="form.observed_on" class="input tnum" type="date" required /></label>
@@ -100,7 +106,7 @@
               <div class="toggle">
                 <UiSwitch id="report-agent" v-model="form.use_agent" :disabled="!agentConfig?.enabled" />
                 <label for="report-agent">附加 AI 解读</label>
-                <span v-if="!agentConfig?.enabled" class="note">AI 解读服务未启用。<button class="ui-link" @click="agentDialogOpen = true">配置服务</button></span>
+                <span v-if="!agentConfig?.enabled" class="note">模型服务未启用。<button class="ui-link" @click="agentDialogOpen = true">配置模型服务</button></span>
                 <span v-else class="note mono truncate">{{ agentConfig.model }}</span>
               </div>
 
@@ -120,12 +126,14 @@
                 <span v-if="busy === 'create' && form.use_agent" class="note" role="status">最长约 {{ agentConfig.timeout_seconds }} 秒。数值部分不依赖 AI 服务。</span>
               </div>
             </section>
+            </template>
 
+            <template #history>
             <section class="ui-card" aria-labelledby="history-title">
               <header class="ui-card-head"><h2 id="history-title">报告记录</h2><span class="note">报告生成后不可修改</span></header>
               <p v-if="!history.length" class="note">这个观测点还没有报告。</p>
               <table v-else class="ui-table">
-                <thead><tr><th>观测日期</th><th class="num">视频</th><th class="num">平均可见鱼数</th><th class="num">白化像素比例</th><th>AI 解读</th><th><span class="sr-only">操作</span></th></tr></thead>
+                <thead><tr><th>观测日期</th><th class="num">视频</th><th class="num">平均可见鱼数</th><th class="num">白化像素比例</th><th>解读</th><th><span class="sr-only">操作</span></th></tr></thead>
                 <tbody>
                   <tr v-for="item in history" :key="item.id">
                     <td class="tnum">{{ item.observed_on }}</td>
@@ -138,7 +146,9 @@
                 </tbody>
               </table>
             </section>
-          </template>
+            </template>
+            </UiTabs>
+          </div>
         </div>
       </div>
     </div>
@@ -174,6 +184,8 @@ import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, DialogDescription, DialogClose } from 'reka-ui'
 import { IconAlertTriangle, IconArrowRight, IconMapPin, IconPencil, IconPlus, IconSparkles, IconTrash } from '@tabler/icons-vue'
 import UiSwitch from './ui/UiSwitch.vue'
+import UiTabs from './ui/UiTabs.vue'
+import AgentWorkspace from './AgentWorkspace.vue'
 import ObservationReportViewer from './ObservationReportViewer.vue'
 import { listSites, createSite, updateSite, deleteSite, listSiteReports, listReportCandidates, previewObservationReport, createObservationReport, getObservationReport } from '../api'
 import { agentConfig, agentDialogOpen, loadAgentConfig } from '../lib/reportAgent'
@@ -183,14 +195,14 @@ import { toast } from '../lib/toast'
 
 const MAX_RUNS = 8
 const KIND = { fish: '鱼类', coral: '珊瑚' }
-const AGENT_TAG = { generated: { label: '已生成', tone: 'tag-accent' }, failed: { label: '未生成', tone: 'tag-danger' }, disabled: { label: '未使用', tone: '' } }
+const AGENT_TAG = { agent_run: { label: 'Agent 起草', tone: 'tag-accent' }, generated: { label: '已生成', tone: 'tag-accent' }, failed: { label: '未生成', tone: 'tag-danger' }, disabled: { label: '未使用', tone: '' } }
 const PREVIEW = ['site.fish.mean_count', 'site.fish.peak_count', 'site.fish.occupied_fraction', 'site.coral.coral_pixel_share', 'site.coral.bleached_coral_fraction', 'env.baa_level']
 const ERRORS = {
   run_not_completed: '所选分析还没有完成。', run_artifacts_unavailable: '无法读取所选分析的结果文件。可以在工作台重新运行分析。',
   duplicate_run_kind_for_video: '每段视频的鱼类和珊瑚分析各选一项。', invalid_run_ids: `选择 1–${MAX_RUNS} 项已完成的分析。`,
   invalid_observed_on: '填写观测日期。', invalid_sst_c: '海表温度填写 -5–45 °C。', invalid_in_situ_temp_c: '原位水温填写 -5–45 °C。',
   invalid_hotspot_c: 'HotSpot 填写 -15–15 °C。', invalid_dhw_c_weeks: 'DHW 填写 0–100 °C-weeks。', invalid_product_date: '产品日期格式不正确。',
-  agent_disabled: 'AI 解读服务未启用。关闭“附加 AI 解读”，或先配置服务。', unknown_site: '观测点不存在，刷新后重试。', unknown_run: '所选分析不存在，刷新后重试。'
+  agent_disabled: '模型服务未启用。关闭“附加 AI 解读”，或先配置模型服务。', unknown_site: '观测点不存在，刷新后重试。', unknown_run: '所选分析不存在，刷新后重试。'
 }
 const SITE_ERRORS = {
   site_name_taken: '已有同名观测点，换一个名称。', invalid_site_name: '名称填写 1–80 个字。', invalid_latitude: '纬度填写 -90–90。',
@@ -206,6 +218,8 @@ const blankEnvironment = () => ({ sst_c: '', hotspot_c: '', dhw_c_weeks: '', in_
 const form = reactive({ observed_on: today(), run_ids: [], environment: blankEnvironment(), use_agent: false })
 
 const site = computed(() => sites.value.find(item => item.id === siteId.value) || null)
+const tab = ref('agent')
+const tabs = computed(() => [{ value: 'agent', label: 'Agent 分析' }, { value: 'manual', label: '手动生成' }, { value: 'history', label: '报告记录', badge: history.value.length || null }])
 const selectedRuns = computed(() => form.run_ids)
 const canSubmit = computed(() => !!site.value && !!form.observed_on && form.run_ids.length > 0)
 const agentLabel = computed(() => agentConfig.value?.enabled ? '已启用' : '未启用')
@@ -358,7 +372,10 @@ onMounted(() => { loadSites(); loadCandidates(); if (!agentConfig.value) loadAge
 .site[aria-current=true] > .tabler-icon { color: var(--accent); }
 .site-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-weight: 500; }
 .site-text .note { font-size: var(--text-caption); font-weight: 400; }
-.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.main, .site-pane { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.site-tabs :deep(.ui-tabs-list) { padding: 0 2px; }
+.site-tabs :deep(.ui-tab-panel) { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; }
+.site-tabs :deep(.ui-tab-panel[hidden]) { display: none; }
 .card-actions { display: flex; gap: 6px; }
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .facts > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }

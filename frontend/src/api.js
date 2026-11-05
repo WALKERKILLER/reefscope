@@ -89,3 +89,11 @@ export const createObservationReport = (payload) => http.post('/v1/observation-r
 export const getObservationReport = (id, signal) => http.get(`/v1/observation-reports/${id}`, { signal })
 export const downloadObservationReport = (id) => http.get(`/v1/observation-reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
 export const observationPrintUrl = (id) => `${API_BASE_URL}/api/v1/observation-reports/${encodeURIComponent(id)}/export?export=html`
+export const listAgentSessions = (siteId, signal) => http.get(`/v1/sites/${siteId}/agent-sessions`, { signal })
+export const createAgentSession = (siteId, text) => http.post(`/v1/sites/${siteId}/agent-sessions`, { text })
+export const getAgentSession = (id, signal) => http.get(`/v1/agent-sessions/${id}`, { signal })
+export const deleteAgentSession = (id) => http.delete(`/v1/agent-sessions/${id}`)
+export const sendAgentMessage = (sessionId, text) => http.post(`/v1/agent-sessions/${sessionId}/messages`, { text })
+export const getAgentRun = (id, after, signal) => http.get(`/v1/agent-runs/${id}`, { params: { after }, signal })
+export const decideAgentProposal = (id, payload) => http.post(`/v1/agent-runs/${id}/decisions`, payload, { timeout: 60000 })
+export const cancelAgentRun = (id) => http.post(`/v1/agent-runs/${id}/cancel`)

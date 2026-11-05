@@ -126,3 +126,47 @@ class ReportAgentConfig(models.Model):
     key_hint = models.CharField(max_length=8, blank=True)
     key_bound_url = models.CharField(max_length=500, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentSession(models.Model):
+    """A conversation with the observation agent about one site; runs share its history and evidence."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(ObservationSite, on_delete=models.CASCADE, related_name="agent_sessions")
+    title = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentRun(models.Model):
+    """One user turn: the agent loop runs in `run_agent_worker` and may pause for approval."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(AgentSession, on_delete=models.CASCADE, related_name="runs")
+    goal = models.TextField(max_length=4000)
+    status = models.CharField(max_length=20, default="queued", db_index=True)
+    attempt_token = models.UUIDField(null=True, editable=False)
+    lease_expires_at = models.DateTimeField(null=True)
+    cancel_requested = models.BooleanField(default=False)
+    transcript = models.JSONField(default=list)
+    ledger = models.JSONField(default=dict)
+    plan = models.JSONField(default=list)
+    pending = models.JSONField(default=dict)
+    answer = models.JSONField(null=True)
+    usage = models.JSONField(default=dict)
+    agent = models.JSONField(default=dict)
+    error_code = models.CharField(max_length=60, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentStep(models.Model):
+    run = models.ForeignKey(AgentRun, on_delete=models.CASCADE, related_name="steps")
+    index = models.PositiveIntegerField()
+    kind = models.CharField(max_length=20)
+    title = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, default="done")
+    payload = models.JSONField(default=dict)
+    duration_ms = models.PositiveIntegerField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["run", "index"], name="agent_step_order")]

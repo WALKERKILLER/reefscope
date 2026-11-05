@@ -13,7 +13,7 @@ defineProps({ parts: { type: Array, default: () => [] }, metrics: { type: Object
 </script>
 
 <style scoped>
-.seg-metric { font-weight: 500; font-variant-numeric: tabular-nums; color: var(--ink); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: help; }
+.seg-metric { font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--ink); text-decoration: underline dotted; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: help; }
 .seg-unverified { padding: 0 2px; border-radius: 3px; color: var(--warn); background: var(--warn-soft); cursor: help; }
 .seg-unknown { color: var(--ink-3); cursor: help; }
 </style>

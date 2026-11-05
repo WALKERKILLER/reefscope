@@ -19,8 +19,8 @@
           <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
             <button class="btn btn-ghost btn-icon" aria-label="全屏展示" @click="toggleFullscreen"><IconMaximize /></button>
           </UiTooltip>
-          <UiTooltip text="AI 解读服务">
-            <button class="btn btn-ghost btn-icon" aria-label="AI 解读服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
+          <UiTooltip text="模型服务">
+            <button class="btn btn-ghost btn-icon" aria-label="模型服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
           </UiTooltip>
           <UiTooltip :text="isDarkTheme ? '切换到浅色' : '切换到深色'">
             <button class="btn btn-ghost btn-icon" :aria-label="isDarkTheme ? '切换到浅色' : '切换到深色'" @click="isDarkTheme = !isDarkTheme">

@@ -1,6 +1,6 @@
 # 观测报告
 
-本文是参考说明，契约见 [观测报告 spec](../specs/draft-observation-reports.md)，取舍见 [0006](../adr/0006-observation-report-agent.md)。页面入口为主导航“观测报告”；AI 解读服务在顶栏齿轮按钮或报告页的“AI 解读”按钮中配置。
+本文是参考说明，契约见 [观测报告 spec](../specs/draft-observation-reports.md)，取舍见 [0006](../adr/0006-observation-report-agent.md)。页面入口为主导航“观测报告”，观测点页分“Agent 分析”“手动生成”“报告记录”三个标签；Agent 见 [观测分析 Agent](observation-agent.md)。模型服务在顶栏齿轮按钮或报告页的“模型服务”按钮中配置，同时供报告解读和 Agent 使用。
 
 ## 流程
 
@@ -42,7 +42,7 @@ HotSpot ≥ 1 而 DHW 缺失时不给等级；DHW 为 0 时提示核对录入值
 
 只与同一观测点更早日期的最新报告比较合并值。模型、分析参数相同且两次都标记为固定机位时，给出变化量（比例以百分点计）；否则只并列两次数值并列出不可比的原因。镜头运动在分析配置中设置，默认“未知”，因此默认不计算变化量。
 
-## AI 解读服务
+## 模型服务
 
 - **格式**：OpenAI 兼容填写包含 `/v1` 的 Base URL，请求 `{base}/chat/completions`；Anthropic Messages 填写服务根地址，请求 `{base}/v1/messages`（Base URL 已以 `/v1` 结尾时只追加 `/messages`）。对话框显示解析后的请求地址。OpenAI 格式不发送 token 上限和 temperature；Anthropic 格式发送“最大输出 tokens”。
 - **请求边界**：只接受 http/https，不跟随重定向，单次超时 5–100 s，响应上限 1 MB。后端进程的 `HTTP(S)_PROXY` 环境变量照常生效。
