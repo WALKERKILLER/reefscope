@@ -46,17 +46,17 @@
 
       <section class="ui-card" aria-labelledby="report-title">
         <header class="ui-card-head"><h2 id="report-title">质量报告</h2><span class="note">{{ report.template_version }}</span></header>
-        <div class="report">
-          <nav class="toc" aria-label="报告章节">
+        <div class="ui-report">
+          <nav class="ui-toc" aria-label="报告章节">
             <ol>
               <li v-for="(section, index) in report.sections" :key="section.title"><a :href="`#chapter-${index + 1}`" @click.prevent="jump(index)"><span class="tnum">{{ index + 1 }}</span>{{ section.title }}</a></li>
             </ol>
           </nav>
-          <div class="chapters">
-            <section v-for="(section, index) in report.sections" :id="`chapter-${index + 1}`" :key="section.title" class="chapter">
+          <div class="ui-chapters">
+            <section v-for="(section, index) in report.sections" :id="`chapter-${index + 1}`" :key="section.title" class="ui-chapter">
               <h3><span class="num tnum">{{ String(index + 1).padStart(2, '0') }}</span>{{ section.title }}</h3>
               <p v-for="paragraph in section.paragraphs" :key="paragraph" class="prose">{{ paragraph }}</p>
-              <dl v-if="section.rows.length" class="rows">
+              <dl v-if="section.rows.length" class="ui-rows">
                 <div v-for="(row, i) in section.rows" :key="i">
                   <dt>{{ row[0] }}</dt>
                   <dd v-if="codes(row[1])" class="codes"><span v-for="code in codes(row[1])" :key="code" class="tag" :title="code">{{ MISSING_INPUTS[code] || code }}</span></dd>
@@ -75,7 +75,7 @@
 
     <section v-if="history && (history.training_runs.length || history.reports.length)" class="ui-card" aria-labelledby="history-title">
       <header class="ui-card-head"><h2 id="history-title">记录历史</h2><span class="note">训练 {{ history.training_runs.length }} · 独立评估 {{ history.evaluations.length }} · 报告 {{ history.reports.length }}</span></header>
-      <table v-if="history.training_runs.length" class="table">
+      <table v-if="history.training_runs.length" class="ui-table">
         <thead><tr><th>训练记录</th><th>导入时间</th><th class="num">epoch</th><th class="num">{{ modelKind === 'coral' ? '选定 epoch' : '最高 mAP50' }}</th><th>缺失项</th></tr></thead>
         <tbody>
           <tr v-for="run in history.training_runs" :key="run.id">
@@ -262,41 +262,19 @@ onBeforeUnmount(() => { disposed = true; for (const c of [modelsAbort, historyAb
 .spacer { flex: 1; }
 .kpis { --kpi-cols: 4; }
 .kpis .ui-kpi { padding: 12px 14px; }
-.report { display: grid; grid-template-columns: 176px minmax(0, 1fr); gap: 28px; align-items: start; }
-.toc { position: sticky; top: 0; }
-.toc ol { display: flex; flex-direction: column; gap: 2px; list-style: none; padding: 0; margin: 0; }
-.toc a { display: flex; gap: 8px; padding: 5px 8px; border-radius: var(--radius); font-size: var(--text-small); color: var(--ink-2); text-decoration: none; transition: color 120ms var(--ease), background-color 120ms var(--ease); }
-.toc a span { min-width: 1em; color: var(--ink-3); }
-.toc a:hover { color: var(--ink); background: var(--surface-2); }
-.chapters { display: flex; flex-direction: column; gap: 28px; max-width: 72ch; }
-.chapter { display: flex; flex-direction: column; gap: 8px; scroll-margin-top: 12px; }
-h3 { display: flex; align-items: baseline; gap: 10px; font-size: var(--text-title); font-weight: 600; }
-.num { font-size: var(--text-small); font-weight: 500; color: var(--ink-3); }
-.rows { display: flex; flex-direction: column; margin-top: 4px; border-radius: var(--radius); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
-.rows > div { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 16px; padding: 7px 12px; font-size: var(--text-small); }
-.rows > div + div { box-shadow: inset 0 1px 0 var(--line); }
-.rows dt { color: var(--ink-3); }
-.rows dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
-.rows dd.missing { color: var(--ink-3); }
 .codes { display: flex; flex-wrap: wrap; gap: 4px; }
 .evidence summary { cursor: pointer; width: fit-content; font-size: var(--text-small); color: var(--ink-3); }
 .evidence summary:hover { color: var(--ink); }
 .evidence pre { margin-top: 8px; padding: 10px 12px; max-height: 320px; overflow: auto; border-radius: var(--radius); font-size: var(--text-caption); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); background: var(--surface-2); }
-.table { width: 100%; border-collapse: collapse; font-size: var(--text-small); }
-.table th { height: 30px; padding: 0 10px; text-align: start; font-size: var(--text-caption); font-weight: 500; color: var(--ink-3); background: var(--surface-2); }
-.table td { padding: 7px 10px; vertical-align: top; box-shadow: inset 0 1px 0 var(--line); }
-.table td .tag-accent { margin-inline-start: 8px; }
-.table .num { text-align: end; }
+.ui-table td .tag-accent { margin-inline-start: 8px; }
 .evaluations { display: flex; flex-direction: column; gap: 6px; }
-.evaluations h3 { font-size: var(--text-small); color: var(--ink-2); }
+.evaluations h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 @media (max-width: 960px) {
-  .report { grid-template-columns: 1fr; }
-  .toc { display: none; }
   .kpis { --kpi-cols: 2; }
 }
 @media (max-width: 640px) {
   .model, .report-pick { width: 100%; }
   .actions { margin-inline-start: 0; flex-wrap: wrap; }
-  .table th:nth-child(2), .table td:nth-child(2), .table th:nth-child(5), .table td:nth-child(5) { display: none; }
+  .ui-table th:nth-child(2), .ui-table td:nth-child(2), .ui-table th:nth-child(5), .ui-table td:nth-child(5) { display: none; }
 }
 </style>

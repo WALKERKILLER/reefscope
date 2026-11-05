@@ -19,6 +19,9 @@
           <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
             <button class="btn btn-ghost btn-icon" aria-label="全屏展示" @click="toggleFullscreen"><IconMaximize /></button>
           </UiTooltip>
+          <UiTooltip text="AI 解读服务">
+            <button class="btn btn-ghost btn-icon" aria-label="AI 解读服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
+          </UiTooltip>
           <UiTooltip :text="isDarkTheme ? '切换到浅色' : '切换到深色'">
             <button class="btn btn-ghost btn-icon" :aria-label="isDarkTheme ? '切换到浅色' : '切换到深色'" @click="isDarkTheme = !isDarkTheme">
               <IconSun v-if="isDarkTheme" /><IconMoon v-else />
@@ -28,7 +31,7 @@
       </header>
 
       <main class="main">
-        <div v-show="activeView !== 'records'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor' }" :style="layoutStyle">
+        <div v-show="activeView !== 'records' && activeView !== 'reports'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor' }" :style="layoutStyle">
           <div v-show="activeView === 'console'" class="area-library">
             <LibraryPanel
               :history="history"
@@ -126,6 +129,7 @@
         </div>
 
         <RecordsView v-if="activeView === 'records'" :history="history" @play-record="handlePlayRecord" />
+        <ReportsView v-if="reportsOpened" v-show="activeView === 'reports'" />
       </main>
 
       <footer class="statusbar">
@@ -137,13 +141,14 @@
     </div>
     <UiToaster />
     <UiDialogHost />
+    <AgentSettingsDialog v-model:open="agentDialogOpen" />
   </TooltipProvider>
 </template>
 
 <script setup>
 import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
 import { TooltipProvider } from 'reka-ui'
-import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh } from '@tabler/icons-vue'
+import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh, IconReportAnalytics, IconSettings } from '@tabler/icons-vue'
 import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun, getHealth } from './api'
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
@@ -161,15 +166,19 @@ import { toast } from './lib/toast'
 import { confirmDialog, promptDialog } from './lib/dialogs'
 import { seekTo } from './lib/playback'
 import { shortId } from './lib/format'
+import { agentDialogOpen } from './lib/reportAgent'
 const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
 // The monitoring wall loads with its first visit; the workspace never downloads it.
 const MonitorView = defineAsyncComponent(() => import('./components/MonitorView.vue'))
 const WallEvidence = defineAsyncComponent(() => import('./components/WallEvidence.vue'))
 const WallInsights = defineAsyncComponent(() => import('./components/wall/WallInsights.vue'))
+const ReportsView = defineAsyncComponent(() => import('./components/ReportsView.vue'))
+const AgentSettingsDialog = defineAsyncComponent(() => import('./components/AgentSettingsDialog.vue'))
 
 const views = [
   { value: 'console', label: '工作台', icon: IconLayoutColumns },
   { value: 'monitor', label: '监测大屏', icon: IconDeviceDesktopAnalytics },
+  { value: 'reports', label: '观测报告', icon: IconReportAnalytics },
   { value: 'records', label: '记录', icon: IconListDetails }
 ]
 const LEFT_MIN = 220, LEFT_MAX = 400, RIGHT_MIN = 300, RIGHT_MAX = 520, CENTER_MIN = 420
@@ -192,6 +201,9 @@ const boxes = shallowRef([])
 const currentTime = ref(0)
 const fileName = ref('')
 const activeView = ref('console')
+// The reports page mounts on first visit and stays mounted, so a half-filled form survives view switches.
+const reportsOpened = ref(false)
+watch(activeView, view => { if (view === 'reports') reportsOpened.value = true })
 const currentTaskId = ref(null)
 const leftWidth = ref(264)
 const rightWidth = ref(352)

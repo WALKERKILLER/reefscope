@@ -94,3 +94,35 @@ class TrainingReport(ImmutableResearchRecord):
     payload = models.JSONField()
     markdown = models.TextField()
     html = models.TextField()
+
+
+class ObservationSite(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=80, unique=True)
+    # Coordinates stay on the platform; observation-report prompts never include them.
+    latitude = models.FloatField(null=True)
+    longitude = models.FloatField(null=True)
+    depth_m = models.FloatField(null=True)
+    notes = models.TextField(blank=True, max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ObservationReport(ImmutableResearchRecord):
+    site = models.ForeignKey(ObservationSite, on_delete=models.PROTECT, related_name="reports")
+    observed_on = models.DateField()
+    payload = models.JSONField()
+    markdown = models.TextField()
+    html = models.TextField()
+
+
+class ReportAgentConfig(models.Model):
+    """Singleton (pk=1). The API key lives in a separate owner-only file, bound to `key_bound_url`."""
+    api_format = models.CharField(max_length=24, default="openai_chat")
+    base_url = models.CharField(max_length=500, blank=True)
+    model = models.CharField(max_length=120, blank=True)
+    timeout_seconds = models.PositiveSmallIntegerField(default=60)
+    max_output_tokens = models.PositiveIntegerField(default=4096)
+    enabled = models.BooleanField(default=False)
+    key_hint = models.CharField(max_length=8, blank=True)
+    key_bound_url = models.CharField(max_length=500, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)

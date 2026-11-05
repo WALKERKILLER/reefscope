@@ -27,7 +27,9 @@
 
 ## 共享样式
 
-横幅、指标块、运行状态、进度条、文字链接、列表与 N/A 列表各只有一份定义：`.ui-banner`（`-warn` / `-danger` / `-info`）、`.ui-kpis` 与 `.ui-kpi`（列数用 `--kpi-cols`，缺值加 `.missing`）、`.ui-run-state`、`.ui-progress`、`.ui-link`、`.ui-bullets`、`.ui-na-list`，以及 `.truncate`、`.empty-title`。组件只写布局差异和修饰，不复制这些规则。
+横幅、指标块、运行状态、进度条、文字链接、列表与 N/A 列表各只有一份定义：`.ui-banner`（`-warn` / `-danger` / `-info`）、`.ui-kpis` 与 `.ui-kpi`（列数用 `--kpi-cols`，缺值加 `.missing`）、`.ui-run-state`、`.ui-progress`、`.ui-link`、`.ui-bullets`、`.ui-na-list`，以及 `.truncate`、`.empty-title`。报告阅读视图共用 `.ui-report`（章节目录与正文两栏）、`.ui-toc`、`.ui-chapters`、`.ui-chapter`、`.ui-rows`（键值行）和 `.ui-table`，模型质量报告与观测报告都使用它们。组件只写布局差异和修饰，不复制这些规则。
+
+观测报告的 AI 解读按片段渲染（`ReportSegments.vue`）：平台填入的数值加虚线下划线，悬停显示指标名；模型自行写出的数字用警示色标记；引用链接到参考资料。
 
 ## 基础组件
 
