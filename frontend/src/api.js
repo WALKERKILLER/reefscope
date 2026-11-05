@@ -64,6 +64,8 @@ export const getAnalysisTracks = (id, params, signal) => http.get(`/v1/analysis-
 export const getAnalysisHeatmap = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/heatmap`, { params, signal })
 export const getAnalysisSummary = (id, params, signal) => http.get(`/v1/analysis-runs/${id}/summary`, { params, signal })
 export const downloadAnalysis = (id, resource, params) => http.get(`/v1/analysis-runs/${id}/${resource}`, { params, responseType: 'blob' })
+export const getCoralMasks = (id, signal) => http.get(`/v1/analysis-runs/${id}/masks`, { signal })
+export const getCoralMask = (id, frame, signal) => http.get(`/v1/analysis-runs/${id}/masks`, { params: { frame }, responseType: 'blob', signal })
 
 export const getHealth = (signal) => http.get('/health', { signal, timeout: 5000 })
 
@@ -71,3 +73,30 @@ export const getModelResearch = (id, signal) => http.get(`/v1/model-versions/${e
 export const getTrainingReport = (id, signal) => http.get(`/v1/reports/${id}`, { signal })
 export const downloadTrainingReport = (id) => http.get(`/v1/reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
 export const reportPrintUrl = (id) => `${API_BASE_URL}/api/v1/reports/${encodeURIComponent(id)}/export?export=html`
+
+export const getReportAgent = (signal) => http.get('/v1/report-agent/config', { signal })
+export const saveReportAgent = (payload) => http.put('/v1/report-agent/config', payload)
+// The backend waits for the model service, bounded by the saved timeout (at most 100 s).
+export const testReportAgent = () => http.post('/v1/report-agent/test', null, { timeout: 110000 })
+export const listSites = (signal) => http.get('/v1/sites', { signal })
+export const createSite = (payload) => http.post('/v1/sites', payload)
+export const updateSite = (id, payload) => http.patch(`/v1/sites/${id}`, payload)
+export const deleteSite = (id) => http.delete(`/v1/sites/${id}`)
+export const listSiteReports = (id, signal) => http.get(`/v1/sites/${id}/reports`, { signal })
+export const listReportCandidates = (signal) => http.get('/v1/observation-reports/candidates', { signal })
+export const previewObservationReport = (payload) => http.post('/v1/observation-reports/preview', payload, { timeout: 60000 })
+export const createObservationReport = (payload) => http.post('/v1/observation-reports', payload, { timeout: 170000 })
+export const getObservationReport = (id, signal) => http.get(`/v1/observation-reports/${id}`, { signal })
+export const downloadObservationReport = (id) => http.get(`/v1/observation-reports/${id}/export`, { params: { export: 'markdown' }, responseType: 'blob' })
+export const observationPrintUrl = (id) => `${API_BASE_URL}/api/v1/observation-reports/${encodeURIComponent(id)}/export?export=html`
+export const listAgentSessions = (siteId, signal) => http.get(`/v1/sites/${siteId}/agent-sessions`, { signal })
+export const createAgentSession = (siteId, text) => http.post(`/v1/sites/${siteId}/agent-sessions`, { text })
+export const getAgentSession = (id, signal) => http.get(`/v1/agent-sessions/${id}`, { signal })
+export const deleteAgentSession = (id) => http.delete(`/v1/agent-sessions/${id}`)
+export const sendAgentMessage = (sessionId, text, context) => http.post(`/v1/agent-sessions/${sessionId}/messages`, context ? { text, context } : { text })
+export const updateAgentSession = (id, payload) => http.patch(`/v1/agent-sessions/${id}`, payload)
+export const listTaskAgentSessions = (taskId, signal) => http.get(`/v1/tasks/${taskId}/agent-sessions`, { signal })
+export const createTaskAgentSession = (taskId, payload) => http.post(`/v1/tasks/${taskId}/agent-sessions`, payload)
+export const getAgentRun = (id, after, signal) => http.get(`/v1/agent-runs/${id}`, { params: { after }, signal })
+export const decideAgentProposal = (id, payload) => http.post(`/v1/agent-runs/${id}/decisions`, payload, { timeout: 60000 })
+export const cancelAgentRun = (id) => http.post(`/v1/agent-runs/${id}/cancel`)

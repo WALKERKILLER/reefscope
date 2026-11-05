@@ -33,6 +33,9 @@ class ModelVersion(models.Model):
     sha256 = models.CharField(max_length=64)
     labels = models.JSONField()
     framework_version = models.CharField(max_length=40)
+    # A Run's kind is its model's kind; fish and coral checkpoints never share an adapter.
+    kind = models.CharField(max_length=12, default="fish")
+    metadata = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
 
 
@@ -91,3 +94,85 @@ class TrainingReport(ImmutableResearchRecord):
     payload = models.JSONField()
     markdown = models.TextField()
     html = models.TextField()
+
+
+class ObservationSite(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=80, unique=True)
+    # Coordinates stay on the platform; observation-report prompts never include them.
+    latitude = models.FloatField(null=True)
+    longitude = models.FloatField(null=True)
+    depth_m = models.FloatField(null=True)
+    notes = models.TextField(blank=True, max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class ObservationReport(ImmutableResearchRecord):
+    site = models.ForeignKey(ObservationSite, on_delete=models.PROTECT, related_name="reports")
+    observed_on = models.DateField()
+    payload = models.JSONField()
+    markdown = models.TextField()
+    html = models.TextField()
+
+
+class ReportAgentConfig(models.Model):
+    """Singleton (pk=1). The API key lives in a separate owner-only file, bound to `key_bound_url`."""
+    api_format = models.CharField(max_length=24, default="openai_chat")
+    base_url = models.CharField(max_length=500, blank=True)
+    model = models.CharField(max_length=120, blank=True)
+    timeout_seconds = models.PositiveSmallIntegerField(default=60)
+    max_output_tokens = models.PositiveIntegerField(default=4096)
+    enabled = models.BooleanField(default=False)
+    key_hint = models.CharField(max_length=8, blank=True)
+    key_bound_url = models.CharField(max_length=500, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentSession(models.Model):
+    """A conversation with the observation agent; runs share its history and evidence.
+
+    Sessions start from a site (reports page) or from a video on the monitoring wall; a wall session
+    may be filed to a site later, which saving a report requires.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    site = models.ForeignKey(ObservationSite, on_delete=models.CASCADE, null=True, blank=True, related_name="agent_sessions")
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name="agent_sessions")
+    title = models.CharField(max_length=120)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentRun(models.Model):
+    """One user turn: the agent loop runs in `run_agent_worker` and may pause for approval."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.ForeignKey(AgentSession, on_delete=models.CASCADE, related_name="runs")
+    goal = models.TextField(max_length=4000)
+    status = models.CharField(max_length=20, default="queued", db_index=True)
+    attempt_token = models.UUIDField(null=True, editable=False)
+    lease_expires_at = models.DateTimeField(null=True)
+    cancel_requested = models.BooleanField(default=False)
+    transcript = models.JSONField(default=list)
+    ledger = models.JSONField(default=dict)
+    context = models.JSONField(default=dict)  # what the observer was looking at when sending the message
+    plan = models.JSONField(default=list)
+    pending = models.JSONField(default=dict)
+    answer = models.JSONField(null=True)
+    usage = models.JSONField(default=dict)
+    agent = models.JSONField(default=dict)
+    error_code = models.CharField(max_length=60, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class AgentStep(models.Model):
+    run = models.ForeignKey(AgentRun, on_delete=models.CASCADE, related_name="steps")
+    index = models.PositiveIntegerField()
+    kind = models.CharField(max_length=20)
+    title = models.CharField(max_length=200)
+    status = models.CharField(max_length=20, default="done")
+    payload = models.JSONField(default=dict)
+    duration_ms = models.PositiveIntegerField(null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["run", "index"], name="agent_step_order")]

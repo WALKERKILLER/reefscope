@@ -31,7 +31,7 @@ python manage.py register_fish_model fish:local-v1 models/model_best.pt
 }
 ```
 
-将请求发送到 `POST /api/v1/tasks/{task_id}/analysis-runs`。返回 202 和 `run_id`。`GET /api/v1/tasks/{task_id}/analysis-runs` 返回最近 100 个 Run，`GET /api/v1/analysis-runs/{run_id}` 返回状态、attempt、进度和摘要。kind 只接受 fish；配置禁止任意模型路径、设备、URL 和未知字段。
+将请求发送到 `POST /api/v1/tasks/{task_id}/analysis-runs`。返回 202 和 `run_id`。`GET /api/v1/tasks/{task_id}/analysis-runs` 返回最近 100 个 Run，`GET /api/v1/analysis-runs/{run_id}` 返回状态、attempt、进度和摘要。kind 接受 fish 与 coral，模型 kind 必须一致；珊瑚 Run 见 [珊瑚白化分析](coral-analysis.md)。配置禁止任意模型路径、设备、URL 和未知字段。
 
 在独立终端执行：
 

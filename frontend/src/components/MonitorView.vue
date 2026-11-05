@@ -1,9 +1,9 @@
 <template>
-  <section class="wall-head" aria-label="鱼类活动监测">
+  <section class="wall-head" :aria-label="title">
     <div class="title-bar">
       <div class="title">
         <span class="beacon" aria-hidden="true" />
-        <h1>鱼类活动监测</h1>
+        <h1>{{ title }}</h1>
         <p v-if="run" class="meta">
           <span class="file" :title="fileName">{{ fileName }}</span>
           <span class="sep" /><span>第 {{ analysis.ordinal ?? '—' }} 次分析</span>
@@ -64,8 +64,9 @@ import Sparkline from './wall/Sparkline.vue'
 import { formatClock, formatDateTime, metricValue, MISSING_REASONS } from '../lib/format'
 import { newIdsCumulative, visibleAt, visiblePerSecond } from '../lib/tracks'
 
-const props = defineProps({ analysis: { type: Object, default: null }, fileName: String, currentTime: { type: Number, default: 0 } })
+const props = defineProps({ analysis: { type: Object, default: null }, coral: { type: Object, default: null }, fileName: String, currentTime: { type: Number, default: 0 } })
 const run = computed(() => props.analysis?.run || null)
+const title = computed(() => props.coral?.run ? '鱼类与珊瑚监测' : '鱼类活动监测')
 const metrics = computed(() => props.analysis?.summary?.metrics || {})
 const duration = computed(() => props.analysis?.duration || props.analysis?.overview?.frames.at(-1)?.[0] || 1)
 const isDemo = computed(() => /synthetic|合成|DEMO/i.test(props.fileName || ''))
@@ -105,7 +106,8 @@ const windowTiles = computed(() => {
 const reason = key => MISSING_REASONS[metrics.value[key]?.reason] || (props.analysis?.summary ? '缺少所需真值' : '正在计算')
 const evalTiles = computed(() => [
   { key: 'ap50', title: '独立测试 AP50', value: value('ap50', 3), note: reason('ap50') },
-  { key: 'coral', title: '珊瑚覆盖率', value: value('coral_cover', 3), note: reason('coral_cover') }
+  // A coral Run states why cover stays unavailable; without one the fish summary's reason applies.
+  { key: 'coral', title: '珊瑚覆盖率', value: null, note: props.coral?.summary ? MISSING_REASONS[props.coral.summary.metrics.coral_cover.reason] : reason('coral_cover') }
 ])
 </script>
 

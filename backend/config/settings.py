@@ -82,4 +82,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 524288000
 
 # Worker outputs are read only through the Run API, never through /media/.
 ANALYSIS_ROOT = Path(os.environ.get("ANALYSIS_ROOT", str(BASE_DIR / ".analysis")))
+# Observation-report agent key: owner-only file outside the database and media tree.
+REPORT_AGENT_KEY_PATH = Path(os.environ.get("REPORT_AGENT_KEY_PATH", str(BASE_DIR / ".secrets" / "report-agent.key")))
 YOLO_MODEL_ROOT = Path(os.environ.get("YOLO_MODEL_ROOT", str(BASE_DIR / "models")))
+CORAL_MODEL_ROOT = Path(os.environ.get("CORAL_MODEL_ROOT", str(BASE_DIR / "models")))

@@ -1,8 +1,11 @@
 <template>
-  <div class="records">
+  <div class="records page">
+    <div class="page-inner">
     <header class="page-head">
-      <h1>记录</h1>
-      <p class="note">{{ intro }}</p>
+      <div>
+        <h1>记录</h1>
+        <p class="note">{{ intro }}</p>
+      </div>
     </header>
     <UiTabs v-model="tab" :items="tabs" aria-label="记录分类" class="tabs">
       <template #videos>
@@ -28,6 +31,7 @@
         <ModelResearch v-if="modelsOpened" />
       </template>
     </UiTabs>
+    </div>
   </div>
 </template>
 
@@ -57,11 +61,7 @@ function statusClass(item) { return item.status === 'failed' ? 'tag-danger' : it
 </script>
 
 <style scoped>
-.records { height: 100%; overflow-y: auto; padding: 24px; }
-.page-head, .tabs { max-width: 1120px; margin-inline: auto; }
-.page-head { margin-bottom: 12px; }
-h1 { font-size: var(--text-heading); font-weight: 600; letter-spacing: -0.01em; }
-.page-head .note { margin-top: 4px; }
+.page-inner { gap: 12px; }
 .tabs :deep(.ui-tabs-list) { padding: 0; margin-bottom: 16px; }
 .panel { border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); overflow: hidden; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--text-body); }
@@ -75,6 +75,6 @@ tr:hover td { background: var(--surface-2); }
 .action { width: 1%; text-align: end; }
 .action .tabler-icon { --icon-size: 14px; }
 .empty { padding: 32px 20px; }
-.empty-title { font-weight: 500; margin-bottom: 4px; }
-@media (max-width: 640px) { .records { padding: 12px; } .num { display: none; } }
+.empty-title { margin-bottom: 4px; }
+@media (max-width: 640px) { .num { display: none; } }
 </style>

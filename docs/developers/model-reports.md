@@ -8,13 +8,15 @@
 
 导入只保存白名单数值配置、逐 epoch 数值、文件摘要与缺失项，不保存数据路径、设备名称、原始日志或图片。CSV 拒绝重复/逆序 epoch、非有限数值及越界概率；YAML 使用安全解析并丢弃路径字段。每次导入创建独立 TrainingRun 和 TrainingReport，公开 API 不提供修改入口。
 
+珊瑚模型使用 `python manage.py import_coral_training MODEL_ID DIRECTORY` 导入交付的训练日志包，只接受 kind 为 coral 的注册模型。读取的每个文件都必须与包内 `CHECKSUMS.sha256.json` 一致；逐 epoch 数值从原始 `raw/training/history.json` 重新计算（每轮取验证 IoU 最高的阈值，并另存固定阈值 0.5），不使用包内派生表。导入还要求以下各项一致：导出记录中的权重 SHA256 等于注册权重；导出、测试、官方训练审计与 guard 校准记录指向同一个训练适配器；重算的选定 epoch 与阈值等于交付的 best 记录；注册权重 metadata 中的 epoch、seed、阈值与 guard 阈值等于训练记录。快照只保存白名单数值、场景组 slug、版本号与摘要；原始文件中的运行目录、设备名称与说明文字不进入数据库。报告使用 `reefscope-coral-report/v1`，同样分七章；测试数值标为回归复核，不生成 EvaluationRun。
+
 `--evaluation UUID` 可关联同模型的 EvaluationRun；`--baseline UUID` 仅在数据摘要、协议与评估配置一致时接受比较。EvaluationRun 是证据存储契约，训练导入命令不运行独立评估，也不从验证曲线生成评估记录。
 
 ## 页面与导出
 
 页面展示模型的训练、评估与报告历史，实际 CSV 曲线及七章确定性报告。验证 mAP50、验证 mAP50-95 的最优 epoch 与框架 best fitness 分别保存；缺少实际 checkpoint epoch 时保持 N/A。
 
-顶部指标读取报告记录的最优 epoch 及该 epoch 的原始数值，不在前端重新挑选。曲线按指标拆为共享 epoch 轴的小多图：验证 mAP、Precision / Recall 与各项 loss；最优 epoch 用圆点标出，悬停时列出该 epoch 的全部数值，缩放在切换主题或调整窗口后保留。原始数值表标出最优 epoch。缺失输入显示为中文标签，悬停可见原始代码。
+顶部指标读取报告记录的最优 epoch 及该 epoch 的原始数值，不在前端重新挑选。曲线按指标拆为共享 epoch 轴的小多图：鱼类为验证 mAP、Precision / Recall 与各项 loss；珊瑚为验证未白化 IoU（逐轮最优阈值与固定 0.5）、F1、Precision / Recall、训练 loss 与逐轮选定阈值，没有验证 loss。每个小图最多两条线；一行放不下小图标题与图例时自动分行；最优 epoch 用圆点标出，悬停时列出该 epoch 的全部数值，缩放在切换主题或调整窗口后保留。原始数值表标出最优 epoch。缺失输入显示为中文标签，悬停可见原始代码。
 
 `GET /api/v1/model-versions/{model_id}/history` 返回各类最新 100 条记录；`GET /api/v1/reports/{uuid}` 返回冻结报告和曲线；`GET /api/v1/evaluations/{uuid}` 返回评估证据。报告导出使用 `/api/v1/reports/{uuid}/export?export=markdown|html`；HTML 提供 A4 打印样式，可通过浏览器打印保存 PDF，不是服务端 PDF 文件接口。
 
@@ -22,4 +24,4 @@
 
 ## 验证边界
 
-`backend/app/test_reports.py` 检查数值解析、YAML 白名单、不可变记录、基线可比性与导出边界。实际 UI 还需检查模型/报告切换、曲线缩放、原始数值、下载和打印布局；构建成功不能替代这些检查。
+`backend/app/test_reports.py` 检查数值解析、YAML 白名单、不可变记录、基线可比性与导出边界；`backend/app/test_coral_training.py` 检查珊瑚日志包的逐轮重算、路径剔除、校验和、权重与适配器链、选定 epoch 及注册 metadata 一致性。实际 UI 还需检查模型/报告切换、曲线缩放、原始数值、下载和打印布局；构建成功不能替代这些检查。

@@ -1,17 +1,8 @@
 <template>
   <aside class="inspector" aria-label="鱼类分析">
-    <header class="head">
-      <div class="min-w-0">
-        <h2>鱼类分析</h2>
-        <p class="note truncate" :title="fileName">{{ fileName }}</p>
-      </div>
-      <UiTooltip text="刷新模型与分析记录">
-        <button class="btn btn-ghost btn-icon" @click="boot" :disabled="busy" aria-label="刷新模型与分析记录"><IconRefresh /></button>
-      </UiTooltip>
-    </header>
-
-    <p v-if="demo" class="banner warn"><IconAlertTriangle />合成演示视频：画面由训练拼图重复生成，结果不代表真实场景精度。</p>
-    <p v-if="error" class="banner danger" role="alert"><IconAlertTriangle /><span>{{ error }}</span><button class="link" @click="boot">重新连接</button></p>
+    <h2 class="sr-only">鱼类分析</h2>
+    <p v-if="demo" class="ui-banner ui-banner-warn"><IconAlertTriangle />合成演示视频：画面由训练拼图重复生成，结果不代表真实场景精度。</p>
+    <p v-if="error" class="ui-banner ui-banner-danger" role="alert"><IconAlertTriangle /><span>{{ error }}</span><button class="ui-link" @click="boot">重新连接</button></p>
 
     <section class="run" aria-label="分析记录">
       <div class="run-row">
@@ -24,12 +15,12 @@
         </UiTooltip>
       </div>
 
-      <p v-if="pendingNewer" class="note pending"><IconClock />有 {{ pendingNewer }} 次更新的分析在排队或执行中，完成后可在分析记录中切换。</p>
+      <p v-if="pendingNewer" class="note pending"><IconClock />还有 {{ pendingNewer }} 次较新的分析在排队或执行，完成后可在“分析记录”中切换。</p>
       <div v-if="run" class="status" aria-live="polite">
-        <span class="state" :data-state="run.status"><span class="dot" />{{ states[run.status] || run.status }}</span>
+        <span class="ui-run-state" :data-state="run.status"><span class="dot" />{{ states[run.status] || run.status }}</span>
         <span class="note tnum">第 {{ run.attempt }}/3 次尝试</span>
       </div>
-      <div v-if="run && (run.status === 'queued' || run.status === 'running')" class="progress" role="progressbar" :aria-valuenow="run.progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析进度"><span :style="{ width: `${run.progress}%` }" /></div>
+      <div v-if="run && (run.status === 'queued' || run.status === 'running')" class="ui-progress" role="progressbar" :aria-valuenow="run.progress" aria-valuemin="0" aria-valuemax="100" aria-label="分析进度"><span :style="{ width: `${run.progress}%` }" /></div>
       <p v-if="run?.status === 'queued'" class="note">等待 Worker 领取。可以继续播放视频。</p>
       <p v-if="run?.status === 'running'" class="note tnum">正在逐帧追踪 · {{ run.progress }}%</p>
       <div v-if="run?.status === 'failed'" class="failed">
@@ -131,8 +122,8 @@
 
           <p v-if="summary" class="applied"><span class="eyebrow">已应用</span><span class="tnum">{{ appliedText }}</span></p>
 
-          <div v-if="summary" class="kpis">
-            <div v-for="(meta, key) in primaryMetrics" :key="key" class="kpi" :title="summary.metrics[key]?.denominator">
+          <div v-if="summary" class="ui-kpis">
+            <div v-for="(meta, key) in primaryMetrics" :key="key" class="ui-kpi" :class="{ missing: metricValue(summary.metrics[key], meta.digits) == null }" :title="summary.metrics[key]?.denominator">
               <span class="eyebrow">{{ meta.title }}</span>
               <strong class="tnum">{{ metricValue(summary.metrics[key], meta.digits) ?? 'N/A' }}</strong>
               <span class="note">{{ meta.unit }}</span>
@@ -142,7 +133,7 @@
 
           <div v-if="summary" class="block">
             <div class="block-head"><h3>需要真值的指标</h3></div>
-            <dl class="na-list">
+            <dl class="ui-na-list">
               <div v-for="(title, key) in truthMetrics" :key="key"><dt>{{ title }}</dt><dd><span class="tag">N/A</span><span class="note">{{ MISSING_REASONS[summary.metrics[key]?.reason] || summary.metrics[key]?.reason }}</span></dd></div>
             </dl>
           </div>
@@ -190,10 +181,10 @@
           <p v-else class="note">选择一次分析后显示来源。</p>
           <div class="block">
             <div class="block-head"><h3>解读限制</h3></div>
-            <ul class="limits">
+            <ul class="ui-bullets">
               <li>轨迹 ID 只在本次分析内有效；遮挡后重新出现会计为新 ID，不等于鱼类个体数。</li>
               <li>平均置信度是模型输出的描述统计，不是准确率。</li>
-              <li>没有独立测试真值时，AP50、IDF1 与珊瑚覆盖率保持 N/A。</li>
+              <li>没有独立测试真值时，AP50 与 IDF1 保持 N/A。</li>
               <li v-for="item in summary?.limitations || []" :key="item">{{ item }}</li>
             </ul>
           </div>
@@ -243,7 +234,8 @@ const primaryMetrics = {
 const tailOptions = [5, 10, 30].map(value => ({ value, label: `${value} 秒` }))
 const motionOptions = Object.entries(motions).map(([value, label]) => ({ value, label }))
 const roiOptions = Object.entries(roiPresets).map(([value, label]) => ({ value, label }))
-const truthMetrics = { ap50: '独立测试 AP50', idf1: '人工真值 IDF1', coral_cover: '珊瑚覆盖率' }
+// Coral cover lives in the coral panel; the fish summary still reports it as unavailable.
+const truthMetrics = { ap50: '独立测试 AP50', idf1: '人工真值 IDF1' }
 
 const tabItems = computed(() => [{ value: 'layers', label: '图层' }, { value: 'stats', label: '统计' }, { value: 'source', label: '来源' }])
 const runOptions = computed(() => runs.value.map((item, index) => ({ value: item.run_id, label: `第 ${runs.value.length - index} 次 · ${states[item.status] || item.status}`, hint: formatDateTime(item.created_at) })))
@@ -326,7 +318,7 @@ async function boot() {
   try {
     const [m, r] = await Promise.all([listAnalysisModels(bootAbort.signal), listAnalysisRuns(props.taskId, bootAbort.signal)])
     if (version !== generation || disposed) return
-    models.value = m.data.items; runs.value = r.data.items
+    models.value = m.data.items.filter(item => item.kind === 'fish'); runs.value = r.data.items.filter(item => item.kind === 'fish')
     modelId.value = models.value[0]?.id || ''
     selectedId.value = (runs.value.find(r => r.status === 'completed') || runs.value[0])?.run_id || ''
   } catch (e) {
@@ -553,28 +545,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .inspector { height: 100%; overflow-y: auto; overflow-x: hidden; background: var(--surface); display: flex; flex-direction: column; }
-.head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px 10px; }
-h2 { font-size: var(--text-title); font-weight: 600; }
 h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
-.min-w-0 { min-width: 0; }
-.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.banner { display: flex; gap: 8px; align-items: flex-start; margin: 0 16px 10px; padding: 8px 10px; border-radius: var(--radius); font-size: var(--text-small); line-height: 1.5; }
-.banner .tabler-icon { --icon-size: 14px; margin-top: 2px; }
-.banner.warn { color: var(--warn); background: var(--warn-soft); }
-.banner.danger { color: var(--danger); background: var(--danger-soft); }
-.link { margin-inline-start: auto; border: 0; background: none; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; white-space: nowrap; }
-.run { display: flex; flex-direction: column; gap: 10px; padding: 4px 16px 14px; }
+.ui-banner { margin: 12px 16px 0; }
+.run { display: flex; flex-direction: column; gap: 10px; padding: 12px 16px 14px; }
 .run-row { display: flex; align-items: flex-end; gap: 8px; }
 .grow { flex: 1; }
 .pending { display: flex; gap: 6px; align-items: flex-start; }
 .pending .tabler-icon { --icon-size: 14px; margin-top: 2px; color: var(--info); }
 .status { display: flex; align-items: center; justify-content: space-between; }
-.state { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; color: var(--ink-2); }
-.state[data-state=completed] .dot { color: var(--ok); }
-.state[data-state=running] .dot, .state[data-state=queued] .dot { color: var(--info); }
-.state[data-state=failed] { color: var(--danger); }
-.progress { height: 3px; border-radius: 2px; background: var(--surface-3); overflow: hidden; }
-.progress > span { display: block; height: 100%; background: var(--info); transition: width 300ms var(--ease); }
 .failed { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--danger); font-size: var(--text-small); line-height: 1.5; }
 .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
 .meta div { min-width: 0; }
@@ -608,14 +586,7 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .with-action { display: flex; gap: 4px; align-items: center; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .applied { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding: 8px 10px; border-radius: var(--radius); background: var(--surface-2); font-size: var(--text-small); }
-.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin-top: 12px; border-radius: var(--radius-lg); overflow: hidden; background: var(--line); box-shadow: 0 0 0 1px var(--line); }
-.kpi { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: var(--surface); min-width: 0; }
-.kpi strong { font-size: var(--text-figure); font-weight: 500; line-height: 1.15; letter-spacing: -0.01em; }
-.kpi .note { font-size: var(--text-caption); }
-.na-list { display: flex; flex-direction: column; gap: 6px; }
-.na-list div { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: baseline; font-size: var(--text-small); }
-.na-list dt { color: var(--ink-2); }
-.na-list dd { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.ui-kpis { margin-top: 12px; }
 .bar-row { display: grid; grid-template-columns: minmax(0, 72px) 1fr auto; gap: 10px; align-items: center; font-size: var(--text-small); }
 .bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .bar > span { display: block; height: 100%; background: var(--ink-3); }
@@ -623,6 +594,4 @@ h3 { font-size: var(--text-small); font-weight: 600; color: var(--ink-2); }
 .provenance { display: flex; flex-direction: column; gap: 10px; }
 .provenance dd { display: flex; align-items: flex-start; gap: 4px; font-size: var(--text-small); overflow-wrap: anywhere; }
 .hash { word-break: break-all; line-height: 1.5; }
-.limits { display: flex; flex-direction: column; gap: 6px; padding-inline-start: 16px; list-style: disc; color: var(--ink-2); font-size: var(--text-small); line-height: 1.55; }
-.limits li::marker { color: var(--ink-3); }
 </style>

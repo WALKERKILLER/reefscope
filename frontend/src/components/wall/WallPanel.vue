@@ -1,6 +1,6 @@
 <template>
   <section class="wall-panel" :aria-labelledby="id">
-    <header class="panel-head">
+    <header class="wall-panel-head">
       <span class="code mono" aria-hidden="true">{{ code }}</span>
       <h3 :id="id">{{ title }}</h3>
       <span v-if="meta || $slots.meta" class="meta"><slot name="meta">{{ meta }}</slot></span>
@@ -27,8 +27,8 @@ const id = `wall-panel-${props.code.toLowerCase()}`
   background-position: top left, top left, bottom right, bottom right;
   background-repeat: no-repeat;
 }
-.panel-head { display: flex; align-items: center; gap: 8px; height: 32px; flex: none; padding: 0 12px; box-shadow: inset 0 -1px 0 var(--line); white-space: nowrap; }
-.code { flex: none; font-size: 10.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--accent); }
+.wall-panel-head { display: flex; align-items: center; gap: 8px; height: 32px; flex: none; padding: 0 12px; box-shadow: inset 0 -1px 0 var(--line); white-space: nowrap; }
+.code { flex: none; font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.04em; color: var(--accent); }
 h3 { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-small); font-weight: 600; color: var(--ink); }
 .meta { display: inline-flex; align-items: center; gap: 6px; min-width: 0; margin-inline-start: auto; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-caption); color: var(--ink-3); }
 .panel-body { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 10px 12px; }

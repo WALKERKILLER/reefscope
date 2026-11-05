@@ -53,7 +53,7 @@ python manage.py register_fish_model fish:local-v1 models/model_best.pt
 python manage.py runserver 127.0.0.1:8000
 ```
 
-In another backend terminal, activate the same environment and run `python manage.py run_analysis_worker` from `backend/`. Keep this Worker running alongside the Web server.
+In another backend terminal, activate the same environment and run `python manage.py run_analysis_worker` from `backend/`. Keep this Worker running alongside the Web server. To use the observation agent, also run `python manage.py run_agent_worker` the same way; see [the agent notes](docs/developers/observation-agent.md).
 
 ### Frontend
 

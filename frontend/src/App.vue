@@ -8,13 +8,22 @@
           <span class="brand-sub">水下生态视频分析</span>
         </div>
         <nav class="nav" aria-label="主导航">
-          <button v-for="item in views" :key="item.value" class="nav-item" :aria-current="activeView === item.value ? 'page' : undefined" @click="activeView = item.value">
-            <component :is="item.icon" />{{ item.label }}
-          </button>
+          <div ref="navTrack" class="nav-track" :class="{ ready: indicator.ready }">
+            <span class="nav-indicator" :style="{ translate: `${indicator.x}px 0`, width: `${indicator.width}px` }" aria-hidden="true" />
+            <button v-for="item in views" :key="item.value" class="nav-item" :data-view="item.value" :aria-label="item.label" :aria-current="activeView === item.value ? 'page' : undefined" @click="activeView = item.value">
+              <component :is="item.icon" /><span class="nav-label">{{ item.label }}</span>
+            </button>
+          </div>
         </nav>
         <div class="top-actions">
+          <UiTooltip v-if="activeView === 'monitor'" text="与 Agent 讨论正在看的视频" shortcut="A">
+            <button class="btn btn-sm assistant-toggle" :aria-pressed="wallPanel === 'agent'" @click="toggleAssistant"><IconSparkles />观测助手</button>
+          </UiTooltip>
           <UiTooltip v-if="activeView === 'monitor'" text="全屏展示" shortcut="F">
             <button class="btn btn-ghost btn-icon" aria-label="全屏展示" @click="toggleFullscreen"><IconMaximize /></button>
+          </UiTooltip>
+          <UiTooltip text="模型服务">
+            <button class="btn btn-ghost btn-icon" aria-label="模型服务设置" @click="agentDialogOpen = true"><IconSettings /></button>
           </UiTooltip>
           <UiTooltip :text="isDarkTheme ? '切换到浅色' : '切换到深色'">
             <button class="btn btn-ghost btn-icon" :aria-label="isDarkTheme ? '切换到浅色' : '切换到深色'" @click="isDarkTheme = !isDarkTheme">
@@ -25,7 +34,7 @@
       </header>
 
       <main class="main">
-        <div v-show="activeView !== 'records'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor' }" :style="layoutStyle">
+        <div v-show="activeView !== 'records' && activeView !== 'reports'" ref="layoutRef" class="layout" :class="{ wall: activeView === 'monitor', 'agent-open': activeView === 'monitor' && wallPanel === 'agent' }" :style="layoutStyle">
           <div v-show="activeView === 'console'" class="area-library">
             <LibraryPanel
               :history="history"
@@ -45,10 +54,10 @@
           <div v-show="activeView === 'console'" class="handle handle-left" role="separator" aria-orientation="vertical" aria-label="调整视频库宽度" @pointerdown="startResize('left', $event)" />
 
           <div v-if="activeView === 'monitor'" class="area-head">
-            <MonitorView :analysis="analysisState" :file-name="fileName" :current-time="currentTime" />
+            <MonitorView :analysis="analysisState" :coral="coralState" :file-name="fileName" :current-time="currentTime" />
           </div>
           <div v-if="activeView === 'monitor'" class="area-left">
-            <WallInsights :analysis="analysisState" :current-time="currentTime" @seek="handleTimelineClick" />
+            <WallInsights :analysis="analysisState" :coral="coralState" :current-time="currentTime" @seek="handleTimelineClick" />
           </div>
 
           <div class="area-center">
@@ -73,43 +82,67 @@
               :progress="progress"
               :logs="logs"
               :video-url="videoUrl"
-              :result-video-url="analysisState ? null : resultVideoUrl"
-              :playback-mode="analysisState ? 'overlay' : playbackMode"
+              :result-video-url="analysisState || coralState ? null : resultVideoUrl"
+              :playback-mode="analysisState || coralState ? 'overlay' : playbackMode"
               :boxes="boxes"
               :analysis="analysisState"
+              :coral="coralState"
               :current-time="currentTime"
               :wall="activeView === 'monitor'"
               @layer="(key, value) => analysisPanelRef?.setLayer(key, value)"
+              @coral-layer="(key, value) => coralPanelRef?.setLayer(key, value)"
               @roi-point="point => analysisPanelRef?.addRoiPoint(point)"
               @file-drop="handleFileDrop"
               @close="handleCloseWorkspace"
               @time-update="(t) => currentTime = t"
               @update:playback-mode="playbackMode = $event"
             />
-            <div v-if="analysisState?.overview && workspaceMode === 'video'" class="timeline-card">
-              <TrackTimeline :spans="analysisState.overview.spans" :frames="analysisState.overview.frames" :duration="analysisState.duration" :current-time="currentTime" :window="analysisState.window" @seek="handleTimelineClick" />
+            <div v-if="(analysisState?.overview || coralState?.frames.length) && workspaceMode === 'video'" class="timeline-card">
+              <TrackTimeline v-if="analysisState?.overview" :spans="analysisState.overview.spans" :frames="analysisState.overview.frames" :duration="analysisState.duration" :current-time="currentTime" :window="analysisState.window" @seek="handleTimelineClick" />
+              <CoralTimeline v-if="coralState?.frames.length" :frames="coralState.frames" :interval-ms="coralState.intervalMs" :duration="coralState.duration" :current-time="currentTime" @seek="handleTimelineClick" />
             </div>
           </div>
 
           <div v-show="activeView === 'console'" class="handle handle-right" role="separator" aria-orientation="vertical" aria-label="调整分析面板宽度" @pointerdown="startResize('right', $event)" />
           <div v-show="activeView === 'console'" class="area-inspector">
-            <FishAnalysisPanel v-if="currentTaskId && workspaceMode === 'video'" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
-            <aside v-else class="inspector-empty" aria-label="分析">
-              <h2>鱼类分析</h2>
+            <template v-if="currentTaskId && workspaceMode === 'video'">
+              <header class="panel-head ruled">
+                <UiSegmented v-model="inspectorKind" :options="inspectorOptions" aria-label="分析类型" />
+                <UiTooltip text="刷新模型与分析记录">
+                  <button class="btn btn-ghost btn-sm btn-icon" aria-label="刷新模型与分析记录" @click="(inspectorKind === 'fish' ? analysisPanelRef : coralPanelRef)?.refresh()"><IconRefresh /></button>
+                </UiTooltip>
+              </header>
+              <!-- Both panels stay mounted so the video keeps fish and coral layers while either is in view. -->
+              <FishAnalysisPanel v-show="inspectorKind === 'fish'" class="panel" ref="analysisPanelRef" :task-id="currentTaskId" :current-time="currentTime" :file-name="fileName" :wall="activeView === 'monitor'" @analysis="analysisState = $event" @seek="handleTimelineClick" @toast="toast" />
+              <CoralAnalysisPanel v-show="inspectorKind === 'coral'" class="panel" ref="coralPanelRef" :task-id="currentTaskId" :current-time="currentTime" @coral="coralState = $event" @seek="handleTimelineClick" @toast="toast" />
+            </template>
+            <aside v-else class="inspector-empty" aria-labelledby="inspector-empty-title">
+              <header class="panel-head ruled"><h2 id="inspector-empty-title" class="panel-title">鱼类与珊瑚分析</h2></header>
               <ol class="steps">
                 <li><span class="num">1</span><div><strong>打开视频</strong><p class="note">从视频库选择，或上传 MP4。</p></div></li>
-                <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">选择注册模型，由独立 Worker 逐帧追踪。</p></div></li>
-                <li><span class="num">3</span><div><strong>查看证据</strong><p class="note">叠加框、尾迹与热图，按时间窗和 ROI 统计并导出。</p></div></li>
+                <li><span class="num">2</span><div><strong>创建分析</strong><p class="note">鱼类逐帧追踪；珊瑚按采样间隔分割白化状态。各由独立 Worker 执行。</p></div></li>
+                <li><span class="num">3</span><div><strong>查看证据</strong><p class="note">叠加框、尾迹、热图与珊瑚掩膜，按时间窗统计并导出。</p></div></li>
               </ol>
             </aside>
           </div>
 
           <div v-if="activeView === 'monitor'" class="area-side">
-            <WallEvidence :analysis="analysisState" @open-workspace="activeView = 'console'" />
+            <UiSegmented v-model="wallPanel" :options="WALL_PANELS" aria-label="右侧面板" block class="side-switch" />
+            <WallEvidence v-show="wallPanel === 'evidence'" :analysis="analysisState" :coral="coralState" @open-workspace="activeView = 'console'" />
+            <section v-if="wallPanel === 'agent'" class="wall-agent">
+              <AgentWorkspace v-if="currentTaskId" dock :task-id="currentTaskId" :context="playbackContext" :enabled="!!agentConfig?.enabled"
+                              @seek="handleTimelineClick" @open-report="openReportFromWall" />
+              <div v-else class="wall-agent-empty">
+                <p class="empty-title">先打开一段视频</p>
+                <p class="note">观测助手围绕正在看的视频工作：读取当前画面和分析结果，回答里的时刻可以点击跳转。</p>
+                <button class="btn btn-sm" @click="activeView = 'console'">前往工作台</button>
+              </div>
+            </section>
           </div>
         </div>
 
         <RecordsView v-if="activeView === 'records'" :history="history" @play-record="handlePlayRecord" />
+        <ReportsView v-if="reportsOpened" v-show="activeView === 'reports'" />
       </main>
 
       <footer class="statusbar">
@@ -121,18 +154,22 @@
     </div>
     <UiToaster />
     <UiDialogHost />
+    <AgentSettingsDialog v-model:open="agentDialogOpen" />
   </TooltipProvider>
 </template>
 
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onBeforeUnmount, onMounted, defineAsyncComponent, shallowRef } from 'vue'
 import { TooltipProvider } from 'reka-ui'
-import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails } from '@tabler/icons-vue'
+import { IconSun, IconMoon, IconMaximize, IconLayoutColumns, IconDeviceDesktopAnalytics, IconListDetails, IconRefresh, IconReportAnalytics, IconSettings, IconSparkles } from '@tabler/icons-vue'
 import { uploadVideo, getTask, listTasks, getConfig, updateConfig, mutateTask, batchMutateTasks, toMediaUrl, listAnalysisModels, listAnalysisRuns, createAnalysisRun, getHealth } from './api'
 import LibraryPanel from './components/LibraryPanel.vue'
 import VideoWorkspace from './components/VideoWorkspace.vue'
 import FishAnalysisPanel from './components/FishAnalysisPanel.vue'
+import CoralAnalysisPanel from './components/CoralAnalysisPanel.vue'
+import UiSegmented from './components/ui/UiSegmented.vue'
 import TrackTimeline from './components/TrackTimeline.vue'
+import CoralTimeline from './components/CoralTimeline.vue'
 import RecordsView from './components/RecordsView.vue'
 import UiTooltip from './components/ui/UiTooltip.vue'
 import UiToaster from './components/ui/UiToaster.vue'
@@ -142,15 +179,20 @@ import { toast } from './lib/toast'
 import { confirmDialog, promptDialog } from './lib/dialogs'
 import { seekTo } from './lib/playback'
 import { shortId } from './lib/format'
+import { agentConfig, agentDialogOpen, loadAgentConfig, requestedReport } from './lib/reportAgent'
 const ConfigEditor = defineAsyncComponent(() => import('./components/ConfigEditor.vue'))
 // The monitoring wall loads with its first visit; the workspace never downloads it.
 const MonitorView = defineAsyncComponent(() => import('./components/MonitorView.vue'))
 const WallEvidence = defineAsyncComponent(() => import('./components/WallEvidence.vue'))
 const WallInsights = defineAsyncComponent(() => import('./components/wall/WallInsights.vue'))
+const ReportsView = defineAsyncComponent(() => import('./components/ReportsView.vue'))
+const AgentWorkspace = defineAsyncComponent(() => import('./components/AgentWorkspace.vue'))
+const AgentSettingsDialog = defineAsyncComponent(() => import('./components/AgentSettingsDialog.vue'))
 
 const views = [
   { value: 'console', label: '工作台', icon: IconLayoutColumns },
   { value: 'monitor', label: '监测大屏', icon: IconDeviceDesktopAnalytics },
+  { value: 'reports', label: '观测报告', icon: IconReportAnalytics },
   { value: 'records', label: '记录', icon: IconListDetails }
 ]
 const LEFT_MIN = 220, LEFT_MAX = 400, RIGHT_MIN = 300, RIGHT_MAX = 520, CENTER_MIN = 420
@@ -158,6 +200,10 @@ const LEFT_MIN = 220, LEFT_MAX = 400, RIGHT_MIN = 300, RIGHT_MAX = 520, CENTER_M
 // --- State ---
 const analysisState = shallowRef(null)
 const analysisPanelRef = ref(null)
+const coralState = shallowRef(null)
+const coralPanelRef = ref(null)
+const inspectorKind = ref('fish')
+const inspectorOptions = [{ value: 'fish', label: '鱼类' }, { value: 'coral', label: '珊瑚' }]
 const history = ref([])
 const status = ref('idle') // 'idle' | 'processing' | 'playing'
 const progress = ref(0)
@@ -169,6 +215,9 @@ const boxes = shallowRef([])
 const currentTime = ref(0)
 const fileName = ref('')
 const activeView = ref('console')
+// The reports page mounts on first visit and stays mounted, so a half-filled form survives view switches.
+const reportsOpened = ref(false)
+watch(activeView, view => { if (view === 'reports') reportsOpened.value = true })
 const currentTaskId = ref(null)
 const leftWidth = ref(264)
 const rightWidth = ref(352)
@@ -197,6 +246,21 @@ function invalidateWorkspaceRequests() {
   uploadAbort?.abort()
   taskAbort?.abort()
 }
+
+// --- Navigation ---
+// The selection pill is measured from the active button so it follows label width and font loading.
+const navTrack = ref(null)
+const indicator = reactive({ x: 0, width: 0, ready: false })
+let navObserver = null
+function placeIndicator() {
+  const button = navTrack.value?.querySelector(`[data-view="${activeView.value}"]`)
+  if (!button) return
+  indicator.x = button.offsetLeft
+  indicator.width = button.offsetWidth
+  // Enable the slide only after the first placement, so the page never animates in.
+  if (!indicator.ready) requestAnimationFrame(() => { indicator.ready = true })
+}
+watch(activeView, () => nextTick(placeIndicator))
 
 // --- Layout ---
 function startResize(side, event) {
@@ -235,9 +299,26 @@ function toggleFullscreen() {
   else document.documentElement.requestFullscreen?.()
 }
 function onKeydown(event) {
-  if (activeView.value !== 'monitor' || event.key.toLowerCase() !== 'f' || event.metaKey || event.ctrlKey || event.altKey) return
+  const key = event.key.toLowerCase()
+  if (activeView.value !== 'monitor' || !['f', 'a'].includes(key) || event.metaKey || event.ctrlKey || event.altKey) return
   if (event.target.closest?.('input, textarea, select, [contenteditable], .art-video-player')) return
-  toggleFullscreen()
+  if (key === 'f') toggleFullscreen()
+  else toggleAssistant()
+}
+
+// --- Observer assistant on the wall ---
+const WALL_PANELS = [{ value: 'evidence', label: '证据' }, { value: 'agent', label: '观测助手' }]
+const wallPanel = ref('evidence')
+watch(wallPanel, panel => { if (panel === 'agent' && !agentConfig.value) loadAgentConfig() })
+function toggleAssistant() {
+  wallPanel.value = wallPanel.value === 'agent' ? 'evidence' : 'agent'
+  if (wallPanel.value === 'agent') nextTick(() => document.querySelector('.wall-agent textarea:not(:disabled)')?.focus())  // when already mounted
+}
+// Sent with each message so the agent knows what the observer is looking at.
+const playbackContext = () => ({ current_time_s: Math.max(0, Number(currentTime.value) || 0), fish_run_id: analysisState.value?.runId || null, coral_run_id: coralState.value?.runId || null })
+function openReportFromWall(id) {
+  requestedReport.value = id
+  activeView.value = 'reports'
 }
 
 // --- Health ---
@@ -336,6 +417,7 @@ async function handleFileDrop(file) {
   uploadAbort = new AbortController()
   currentTaskId.value = null
   analysisState.value = null
+  coralState.value = null
   status.value = 'processing'
   progress.value = 0
   logs.value = [`正在上传 ${file.name}（${fileSizeMB} MB）`, '等待本地后端保存视频…']
@@ -369,6 +451,7 @@ function handleCloseWorkspace() {
   resultVideoUrl.value = null
   playbackMode.value = 'overlay'
   analysisState.value = null
+  coralState.value = null
   boxes.value = []
   logs.value = []
   progress.value = 0
@@ -410,9 +493,11 @@ function getHistoryItemById(id) {
 
 async function queueNewAnalysis(taskId) {
   const [taskResponse, historyResponse, modelsResponse] = await Promise.all([getTask(taskId), listAnalysisRuns(taskId), listAnalysisModels()])
-  const previous = historyResponse.data.items[0]
-  const model = modelsResponse.data.items.find(item => item.id === previous?.config_snapshot.models.fish) || modelsResponse.data.items[0]
-  if (!model) throw new Error('还没有注册模型。先在后端注册授权权重')
+  // Rerun repeats fish tracking only; coral Runs are created from the coral panel.
+  const previous = historyResponse.data.items.find(item => item.kind === 'fish')
+  const fishModels = modelsResponse.data.items.filter(item => item.kind === 'fish')
+  const model = fishModels.find(item => item.id === previous?.config_snapshot.models.fish) || fishModels[0]
+  if (!model) throw new Error('还没有注册鱼类模型。先在后端注册授权权重')
   await createAnalysisRun(taskId, { kind: 'fish', models: { fish: model.id }, settings: previous?.config_snapshot.settings || {} })
   return taskResponse.data
 }
@@ -445,7 +530,7 @@ async function handleSingleFileAction({ action, item }) {
     if (action === 'copy') {
       const res = await mutateTask(taskId, { action: 'copy' })
       upsertHistory(res.data)
-      showToast('已复制', res.data.original_filename, 'success')
+      showToast('已创建副本', res.data.original_filename, 'success')
       return
     }
     if (action === 'rerun') {
@@ -455,7 +540,7 @@ async function handleSingleFileAction({ action, item }) {
       const wasCurrent = currentTaskId.value === taskId
       applyTaskPlayback(task, '[RERUN]')
       if (wasCurrent) analysisPanelRef.value?.refresh()
-      showToast('分析已排队', '沿用上次的模型与参数。旧结果保留，可在分析记录中切换。')
+      showToast('鱼类分析已排队', '沿用上次的鱼类模型与参数。旧结果保留，可在分析记录中切换。')
     }
   } catch (error) {
     const errMsg = error.response?.data?.detail || error.message || '操作失败'
@@ -482,14 +567,14 @@ async function handleBatchFileAction({ action }) {
       const res = await batchMutateTasks({ action: 'copy', task_ids: taskIds })
       for (const task of res.data.tasks || []) upsertHistory(task)
       setSelectionMode(false)
-      showToast('已复制', `${selectedItems.length} 个视频`, 'success')
+      showToast('已创建副本', `${selectedItems.length} 个视频`, 'success')
       return
     }
     if (action === 'rerun') {
       let count = 0
       for (const taskId of taskIds) {
         try { await queueNewAnalysis(taskId); count += 1 }
-        catch { showToast('部分分析没有排队', `已排队 ${count} 个，其余视频请单独重试。`, 'alert'); return }
+        catch { showToast('只排队了部分视频', `已排队 ${count} 个。其余视频请逐个重新分析。`, 'alert'); return }
       }
       setSelectionMode(false)
       analysisPanelRef.value?.refresh()
@@ -567,6 +652,10 @@ async function loadPipelineConfig() {
 watch(activeView, () => setSelectionMode(false))
 
 onMounted(async () => {
+  placeIndicator()
+  navObserver = new ResizeObserver(placeIndicator)
+  if (navTrack.value) navObserver.observe(navTrack.value)
+  document.fonts?.ready.then(placeIndicator)
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('fullscreenchange', syncFullscreen)
   checkHealth()
@@ -578,6 +667,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  navObserver?.disconnect()
   window.removeEventListener('keydown', onKeydown)
   document.removeEventListener('fullscreenchange', syncFullscreen)
   invalidateWorkspaceRequests()
@@ -589,18 +679,22 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .app { display: grid; grid-template-rows: 48px 1fr 28px; height: 100dvh; }
-.topbar { display: flex; align-items: center; gap: 24px; padding: 0 12px 0 16px; background: var(--canvas); box-shadow: inset 0 -1px 0 var(--line); }
-.brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Three-zone header: brand leads, navigation sits on the true center line, actions trail. */
+.topbar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; padding-inline: 14px; background: var(--canvas); box-shadow: inset 0 -1px 0 var(--line); }
+.brand { display: flex; align-items: center; gap: 8px; min-width: 0; justify-self: start; }
 .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
 .brand-name { font-weight: 600; letter-spacing: -0.01em; }
 .brand-sub { color: var(--ink-3); font-size: var(--text-small); white-space: nowrap; }
-.nav { display: flex; gap: 2px; height: 100%; }
-.nav-item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 12px; border: 0; background: none; font: inherit; font-weight: 500; color: var(--ink-3); cursor: pointer; transition: color 120ms var(--ease); }
+.nav { justify-self: center; min-width: 0; }
+.nav-track { position: relative; display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); }
+.nav-indicator { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 999px; background: var(--surface); box-shadow: 0 0 0 1px var(--line), 0 1px 2px oklch(0 0 0 / 0.1); pointer-events: none; }
+.dark .nav-indicator { background: var(--surface-3); box-shadow: 0 0 0 1px var(--line-strong); }
+.nav-track.ready .nav-indicator { transition: translate 200ms var(--ease), width 200ms var(--ease); }
+.nav-item { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 14px; border: 0; border-radius: 999px; background: none; font: inherit; font-weight: 500; color: var(--ink-3); white-space: nowrap; cursor: pointer; transition: color 120ms var(--ease); }
 .nav-item:hover { color: var(--ink); }
 .nav-item[aria-current=page] { color: var(--ink); }
-.nav-item[aria-current=page]::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 1px; background: var(--accent); }
 .nav-item[aria-current=page] .tabler-icon { color: var(--accent); }
-.top-actions { display: flex; gap: 4px; margin-inline-start: auto; }
+.top-actions { display: flex; gap: 4px; justify-self: end; }
 .main { position: relative; min-height: 0; overflow: hidden; }
 .layout {
   display: grid; height: 100%; padding: 10px; column-gap: 0; row-gap: 10px;
@@ -624,25 +718,31 @@ onBeforeUnmount(() => {
 }
 .layout.wall .area-center { gap: 10px; }
 .layout.wall .timeline-card { border-radius: var(--radius); }
-@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.stage) { height: 96px; } }
+@media (max-height: 800px) { .layout.wall .timeline-card { padding: 6px 12px 4px; } .layout.wall .timeline-card :deep(.timeline .stage) { height: 96px; } }
 .area-left { grid-area: left; min-height: 0; min-width: 0; }
 .app.immersive { grid-template-rows: 0 1fr 0; }
 .app.immersive .topbar, .app.immersive .statusbar { visibility: hidden; overflow: hidden; }
 .area-library { grid-area: library; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
-.area-inspector { grid-area: inspector; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.area-inspector { grid-area: inspector; display: flex; flex-direction: column; min-height: 0; border-radius: var(--radius-lg); overflow: hidden; box-shadow: 0 0 0 1px var(--line); background: var(--surface); }
+.panel { flex: 1 1 0; min-height: 0; }
 .area-head { grid-area: head; min-width: 0; }
 .area-center { grid-area: center; display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
-.area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; }
+.area-side { grid-area: side; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.side-switch { flex: none; }
+/* The assistant takes the evidence column's place; the video keeps playing beside it. */
+.layout.wall.agent-open { grid-template-columns: minmax(240px, 19%) minmax(0, 1fr) minmax(360px, 30%); }
+.wall-agent { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 12px; border-radius: var(--radius); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.wall-agent-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.assistant-toggle[aria-pressed=true] { color: var(--accent); background: var(--accent-soft); box-shadow: none; }
 .grow { flex: 1; min-height: 0; }
 .handle { position: relative; cursor: col-resize; touch-action: none; }
 .handle-left { grid-area: hl; }
 .handle-right { grid-area: hr; }
 .handle::after { content: ""; position: absolute; top: 50%; left: 50%; width: 3px; height: 28px; translate: -50% -50%; border-radius: 2px; background: var(--line-strong); opacity: 0; transition: opacity 120ms var(--ease); }
 .handle:hover::after, .handle:active::after { opacity: 1; }
-.timeline-card { flex: none; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
-.inspector-empty { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
-.inspector-empty h2 { font-size: var(--text-title); font-weight: 600; }
-.steps { display: flex; flex-direction: column; gap: 14px; }
+.timeline-card { flex: none; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 8px; border-radius: var(--radius-lg); background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.inspector-empty { display: flex; flex-direction: column; }
+.steps { display: flex; flex-direction: column; gap: 14px; padding: 16px; }
 .steps li { display: flex; gap: 10px; }
 .steps strong { font-weight: 500; }
 .num { display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; font-size: var(--text-caption); font-weight: 600; color: var(--ink-2); background: var(--surface-3); }
@@ -653,7 +753,6 @@ onBeforeUnmount(() => {
 .health[data-state=offline] { color: var(--danger); }
 .health[data-state=checking] .dot { color: var(--ink-3); }
 .context { display: inline-flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink-2); }
-.truncate { overflow: hidden; text-overflow: ellipsis; }
 .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-3); opacity: 0.6; }
 .spacer { flex: 1; }
 .faint { color: var(--ink-3); }
@@ -663,18 +762,26 @@ onBeforeUnmount(() => {
   .layout { grid-template-columns: 232px 8px minmax(0, 1fr) 8px 312px; }
 }
 @media (max-width: 1200px) and (min-width: 901px) {
-  .layout.wall { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall, .layout.wall.agent-open { overflow-y: auto; grid-template-columns: minmax(0, 1fr) minmax(280px, 32%); grid-template-rows: auto minmax(480px, calc(100dvh - 300px)) auto; grid-template-areas: "head head" "center side" "left left"; }
+  .layout.wall.agent-open { grid-template-columns: minmax(0, 1fr) minmax(340px, 40%); }
   .layout.wall .area-left { min-height: auto; }
 }
 @media (max-width: 900px) {
   .topbar { gap: 8px; padding: 0 8px; }
-  .nav-item { padding: 0 8px; }
+  .nav-item { padding: 0 10px; }
   .layout, .layout.wall { display: flex; flex-direction: column; overflow-y: auto; padding: 8px; gap: 8px; }
   .handle { display: none; }
   .area-library { flex: none; height: 220px; }
   .area-center { flex: none; height: 62vh; min-height: 360px; }
   .area-inspector { flex: none; min-height: 560px; }
   .area-side, .area-left { flex: none; }
+  .wall-agent { height: 78vh; min-height: 480px; }
   .statusbar .faint { display: none; }
+}
+@media (max-width: 640px) { .brand-name { display: none; } }
+/* Narrow phones keep every destination visible as an icon; the label stays the accessible name. */
+@media (max-width: 480px) {
+  .nav-item { padding: 0 12px; }
+  .nav-label { display: none; }
 }
 </style>
