@@ -19,7 +19,22 @@
       <p v-else class="note">{{ analysis?.summary ? '窗口内没有观测。' : '正在计算…' }}</p>
     </WallPanel>
 
-    <WallPanel code="A3" title="停留最长的 ID" class="grow" :meta="spans.length ? `共 ${spans.length} 个 ID · 按观测跨度` : ''">
+    <WallPanel v-if="coral?.run" code="A3" title="珊瑚白化" :meta="coralMeta">
+      <template v-if="coral.summary">
+        <div class="bars">
+          <div v-for="row in coralRows" :key="row.label" class="bar-row coral-row">
+            <span class="label">{{ row.label }}</span>
+            <span class="bar"><span :style="{ width: `${(row.value || 0) * 100}%`, background: row.color }" /></span>
+            <span class="tnum share-value">{{ row.value == null ? 'N/A' : `${(row.value * 100).toFixed(row.value >= 0.1 ? 1 : 2)}%` }}</span>
+          </div>
+        </div>
+        <p class="coral-warn"><IconAlertTriangle />白化未经本地真值验证</p>
+        <p class="note tnum coral-now">{{ coralNow }}</p>
+      </template>
+      <p v-else class="note">{{ coral.run.status === 'completed' ? '正在计算…' : '珊瑚分析完成后显示白化比例。' }}</p>
+    </WallPanel>
+
+    <WallPanel :code="coral?.run ? 'A4' : 'A3'" title="停留最长的 ID" class="grow" :meta="spans.length ? `共 ${spans.length} 个 ID · 按观测跨度` : ''">
       <ol v-if="ranked.length" class="rank" aria-label="点击跳到首次出现">
         <li v-for="(item, i) in ranked" :key="item.id">
           <button class="rank-row" :class="{ current: isOnScreen(item) }" :title="`跳到 #${item.id} 首次出现（${(item.first / 1000).toFixed(1)} s）`" @click="emit('seek', item.first / 1000)">
@@ -41,13 +56,15 @@
 
 <script setup>
 import { computed } from 'vue'
+import { IconAlertTriangle } from '@tabler/icons-vue'
 import WallPanel from './WallPanel.vue'
-import { trackColor } from '../../lib/palette'
+import { trackColor, CORAL_CLASSES } from '../../lib/palette'
+import { sampleAt } from '../../lib/coralMasks'
 import { longestStays } from '../../lib/tracks'
 import { isDark } from '../../lib/theme'
 import { shortId } from '../../lib/format'
 
-const props = defineProps({ analysis: { type: Object, default: null }, currentTime: { type: Number, default: 0 } })
+const props = defineProps({ analysis: { type: Object, default: null }, coral: { type: Object, default: null }, currentTime: { type: Number, default: 0 } })
 const emit = defineEmits(['seek'])
 const run = computed(() => props.analysis?.run || null)
 const spans = computed(() => props.analysis?.overview?.spans || [])
@@ -80,6 +97,25 @@ const facts = computed(() => {
   ]
 })
 
+const coralMeta = computed(() => {
+  const m = props.coral?.summary?.metrics
+  return m ? `画面像素 · ${m.sampled_frames.value} 帧 · 每 ${props.coral.summary.sample_every_seconds} s` : ''
+})
+const coralRows = computed(() => {
+  const m = props.coral?.summary?.metrics || {}, ink = id => isDark.value ? CORAL_CLASSES[id].ink : CORAL_CLASSES[id].paper
+  return [
+    { label: '珊瑚像素', value: m.coral_pixel_share?.value, color: ink(1) },
+    { label: '白化占珊瑚', value: m.bleached_coral_fraction?.value, color: ink(2) }
+  ]
+})
+const coralNow = computed(() => {
+  const c = props.coral, frames = c?.frames || []
+  const i = sampleAt(frames, props.currentTime * 1000), p = frames[i]
+  if (!p || props.currentTime * 1000 - p.timestamp_ms >= c.intervalMs) return '此刻没有采样掩膜'
+  const area = p.width * p.height, f = v => `${(v / area * 100).toFixed(1)}%`
+  return `当前掩膜 ${(p.timestamp_ms / 1000).toFixed(1)} s · ${p.background_separated ? `珊瑚 ${f(p.pixel_counts['1'] + p.pixel_counts['2'])} · ` : '未分离背景 · '}白化 ${f(p.pixel_counts['2'])}`
+})
+
 const classRows = computed(() => {
   const counts = props.analysis?.summary?.class_observation_counts || {}
   const total = Object.values(counts).reduce((a, b) => a + b, 0)
@@ -104,6 +140,13 @@ const classRows = computed(() => {
 .bar { height: 6px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
 .bar > span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 .share { text-align: end; color: var(--ink-3); font-size: var(--text-caption); }
+.coral-row { grid-template-columns: minmax(0, 72px) 1fr 52px; }
+.share-value { text-align: end; }
+.coral-warn { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: var(--text-caption); color: var(--warn); }
+.coral-warn .tabler-icon { --icon-size: 13px; flex: none; }
+.coral-now { margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-caption); }
+/* Short walls keep the ranking readable; the current-mask line is also on the video HUD. */
+@media (max-height: 800px) { .coral-now { display: none; } }
 .grow :deep(.panel-body) { padding: 4px 6px 6px; }
 .rank { flex: 1; min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0; mask-image: linear-gradient(180deg, #000 calc(100% - 24px), transparent); scrollbar-width: thin; }
 .rank-row { display: grid; grid-template-columns: 18px 8px 44px minmax(0, 1fr) 46px; gap: 8px; align-items: center; width: 100%; height: 26px; padding: 0 6px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--text-small); color: var(--ink-2); cursor: pointer; text-align: start; transition: background-color 120ms var(--ease); }

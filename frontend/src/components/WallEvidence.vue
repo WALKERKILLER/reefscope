@@ -29,7 +29,7 @@ import HeatmapFigure from './HeatmapFigure.vue'
 import TrajectoryFigure from './TrajectoryFigure.vue'
 import WallPanel from './wall/WallPanel.vue'
 
-const props = defineProps({ analysis: { type: Object, default: null } })
+const props = defineProps({ analysis: { type: Object, default: null }, coral: { type: Object, default: null } })
 const emit = defineEmits(['open-workspace'])
 
 const LIMITATIONS = {
@@ -45,6 +45,12 @@ const limits = computed(() => {
   if (motion !== 'fixed') items.unshift({ text: motion === 'moving' ? '移动机位：画面坐标随镜头漂移' : '镜头运动未声明：画面坐标可能随镜头漂移', warn: true })
   if (run?.summary?.timestamp_fallback_frames > 0) items.unshift({ text: `${run.summary.timestamp_fallback_frames} 帧缺少时间戳，按帧号推算`, warn: true })
   if (props.analysis?.overview?.truncated) items.unshift({ text: '全片轨迹超过显示预算，轨迹图未画全', warn: true })
+  // The unvalidated-bleaching warning sits in the wall's coral panel, next to the numbers it qualifies.
+  const coral = props.coral?.run?.status === 'completed' ? props.coral.run.summary : null
+  if (coral) {
+    const unseparated = coral.sampled_frames - coral.background_separated_frames
+    if (unseparated > 0) items.push({ text: `${unseparated} 个珊瑚采样帧未分离背景，不计入珊瑚像素占比`, warn: true })
+  }
   return items
 })
 const trajectoryMeta = computed(() => {
