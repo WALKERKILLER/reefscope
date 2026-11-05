@@ -47,7 +47,8 @@ class Context:
         ids = []
         for key, item in metrics.items():
             name = f"{prefix}.{key}"
-            self.metrics[name] = {field: item.get(field) for field in ("label", "value", "unit", "display", "status", "reason_text", "source", "user_display")}
+            self.metrics[name] = {field: item.get(field) for field in ("label", "value", "unit", "display", "status", "reason_text", "source", "user_display",
+                                                                       "seek_s", "task_id")}
             ids.append(name)
         return ids
 
@@ -100,8 +101,13 @@ def update_plan(ctx, args):
     return {"ok": True}, [], f"计划 {sum(s['status'] == 'done' for s in plan)}/{len(plan)}"
 
 
+NO_SITE = "这个会话还没有归档到观测点。请用户在面板顶部选择观测点后再试。"
+
+
 def get_site_overview(ctx, args):
     site = ctx.site
+    if site is None:
+        raise ToolError("no_site", NO_SITE)
     history = []
     for report in site.reports.order_by("-observed_on", "-created_at")[:10]:
         prefix = f"H{report.observed_on.strftime('%Y%m%d')}"
@@ -115,6 +121,11 @@ def get_site_overview(ctx, args):
     return result, depth + [name for item in history for name in item["metrics"]], f"{len(history)} 份历史报告"
 
 
+def register_video(ctx, task):
+    """Videos are named "视频 #N" to the model; the file name is shown to the user only."""
+    return ctx.register(f"V{task.pk}", {"label": entry("视频", f"视频 #{task.pk}", "text", user_display=task.original_filename)})
+
+
 def list_videos(ctx, args):
     videos = []
     tasks = Task.objects.annotate(n=Count("analysis_runs")).filter(n__gt=0).order_by("-created_at")[:30]
@@ -124,7 +135,7 @@ def list_videos(ctx, args):
         for run in task.analysis_runs.select_related("model").order_by("-created_at")[:6]:
             runs.append({"run_id": str(run.pk), "kind": run.model.kind, "status": run.status, "model_id": run.model_id,
                          "camera_motion": run.config_snapshot.get("settings", {}).get("camera_motion"), "created_at": run.created_at.date().isoformat()})
-        ids += ctx.register(f"V{task.pk}", {"label": entry("视频", f"视频 #{task.pk}", "text", user_display=task.original_filename)})
+        ids += register_video(ctx, task)
         videos.append({"video_id": task.pk, "label_id": f"V{task.pk}.label", "uploaded": task.created_at.date().isoformat(), "runs": runs})
     missing = [{"video_id": v["video_id"], "missing_kinds": sorted({"fish", "coral"} - {r["kind"] for r in v["runs"] if r["status"] == "completed"})} for v in videos]
     return {"videos": videos, "coverage": [m for m in missing if m["missing_kinds"]]}, ids, f"{len(videos)} 段视频"
@@ -177,10 +188,11 @@ def fish_activity_timeline(ctx, args):
     for index, item in enumerate(bins):
         span = f"{item['start']:.0f}–{item['end']:.0f} s"
         metrics[f"b{index:02d}.mean_count"] = entry(f"{span} 平均可见鱼数", item["mean"], "fish_per_frame")
-        metrics[f"b{index:02d}.window"] = entry("时段", span, "text")
+        metrics[f"b{index:02d}.window"] = entry("时段", span, "text", seek_s=item["start"], task_id=run.task_id)
     busiest, quietest = max(range(len(bins)), key=lambda i: bins[i]["mean"]), min(range(len(bins)), key=lambda i: bins[i]["mean"])
     for name, index in (("busiest", busiest), ("quietest", quietest)):
-        metrics[f"{name}.window"] = entry("最活跃时段" if name == "busiest" else "最安静时段", f"{bins[index]['start']:.0f}–{bins[index]['end']:.0f} s", "text")
+        metrics[f"{name}.window"] = entry("最活跃时段" if name == "busiest" else "最安静时段", f"{bins[index]['start']:.0f}–{bins[index]['end']:.0f} s", "text",
+                                          seek_s=bins[index]["start"], task_id=run.task_id)
         metrics[f"{name}.mean_count"] = entry(("最活跃" if name == "busiest" else "最安静") + "时段平均可见鱼数", bins[index]["mean"], "fish_per_frame")
     ids = ctx.register(prefix, metrics)
     note = "处理帧数按帧率估算；画面坐标，镜头运动未知时只描述画面。"
@@ -200,7 +212,7 @@ def fish_window_summary(ctx, args):
     tracks = {track for track, (first, last) in spans.items() if first < end * 1000 and last >= start * 1000}
     prefix = ctx.namespace("W")
     ids = ctx.register(prefix, {
-        "window": entry("时间窗", f"{start:.0f}–{min(end, duration):.0f} s", "text"),
+        "window": entry("时间窗", f"{start:.0f}–{min(end, duration):.0f} s", "text", seek_s=start, task_id=run.task_id),
         "mean_count": entry("时间窗平均可见鱼数", sum(inside.values()) / frames, "fish_per_frame", source="SCHOBERND-2014"),
         "peak_count": entry("时间窗画面峰值", max(inside.values(), default=0), "fish"),
         "occupied_fraction": entry("时间窗有鱼帧比例", len(inside) / frames, "fraction"),
@@ -222,7 +234,7 @@ def coral_frame_review(ctx, args):
     for group, rows in groups.items():
         for rank, row in enumerate(rows, start=1):
             key = f"{group}{rank}"
-            metrics[f"{key}.time"] = entry(f"{labels[group]}第 {rank} 帧的时间", row["timestamp_ms"] / 1000, "seconds")
+            metrics[f"{key}.time"] = entry(f"{labels[group]}第 {rank} 帧的时间", row["timestamp_ms"] / 1000, "seconds", seek_s=row["timestamp_ms"] / 1000, task_id=run.task_id)
             metrics[f"{key}.coral_share"] = entry(f"{labels[group]}第 {rank} 帧珊瑚占比", row["coral_share"], "fraction")
             metrics[f"{key}.bleached_fraction"] = entry(f"{labels[group]}第 {rank} 帧白化比例", row["bleached_coral_fraction"], "fraction")
             frames.append({"group": group, "rank": rank, "frame": row["frame"], "timestamp_ms": row["timestamp_ms"], "run_id": str(run.pk)})
@@ -230,6 +242,42 @@ def coral_frame_review(ctx, args):
     ids = ctx.register(prefix, metrics)
     note = "没有白化像素时 bleached 组为空。帧时间可供人工在工作台复核掩膜。"
     return {"review": prefix, "metrics": view(ctx.metrics, ids), "frames": frames, "note": note}, ids, f"{prefix} · {len(frames)} 帧"
+
+
+def get_playback_context(ctx, args):
+    """What the observer sees on the monitoring wall at the moment they sent the message."""
+    context = ctx.run.context or {}
+    if not context.get("task_id"):
+        raise ToolError("no_playback_context", "这个任务不是从监测大屏发起的，没有当前画面。")
+    task = Task.objects.filter(pk=context["task_id"]).first()
+    if task is None:
+        raise ToolError("unknown_video", "监测大屏上的视频已被删除。")
+    now = context.get("current_time_s") or 0.0
+    prefix = ctx.namespace("P")
+    metrics = {"label": entry("视频", f"视频 #{task.pk}", "text", user_display=task.original_filename),
+               "time": entry("当前播放时刻", now, "seconds", seek_s=now, task_id=task.pk)}
+    runs = {}
+    if context.get("fish_run_id"):
+        run = completed_run(context["fish_run_id"], "fish")
+        counts, times, _ = observation_facts.fish_frames(run)
+        fps, frames = run.summary.get("fps"), run.summary.get("frame_count") or 0
+        frame = min(round(now * fps), max(frames - 1, 0)) if fps else None
+        metrics["fish.visible_now"] = entry("当前帧可见鱼数", counts.get(frame, 0) if frame is not None else None, "fish", reason="unknown_frame_rate")
+        metrics["fish.mean_count"] = entry("全片平均可见鱼数", sum(counts.values()) / frames if frames else None, "fish_per_frame",
+                                           reason="no_processed_frames", source="SCHOBERND-2014")
+        runs["fish_run_id"] = str(run.pk)
+    if context.get("coral_run_id"):
+        run = completed_run(context["coral_run_id"], "coral")
+        series = [row for row in coral_query.summarize(run, coral_query.window({}))["series"] if row["coral_share"] is not None]
+        if series:
+            row = min(series, key=lambda r: abs(r["timestamp_ms"] / 1000 - now))
+            metrics["coral.sample_time"] = entry("最近的珊瑚采样帧时间", row["timestamp_ms"] / 1000, "seconds", seek_s=row["timestamp_ms"] / 1000, task_id=task.pk)
+            metrics["coral.coral_share"] = entry("该采样帧珊瑚像素占比", row["coral_share"], "fraction")
+            metrics["coral.bleached_fraction"] = entry("该采样帧白化像素比例", row["bleached_coral_fraction"], "fraction")
+        runs["coral_run_id"] = str(run.pk)
+    ids = ctx.register(prefix, metrics)
+    return {"context": prefix, "video_id": task.pk, "label_id": f"{prefix}.label", **runs, "metrics": view(ctx.metrics, ids),
+            "note": "当前帧可见鱼数是单帧计数，会随画面快速变化；需要更稳定的描述时用 fish_window_summary 看前后一段时间。"}, ids, f"{prefix} · {len(ids)} 项"
 
 
 def model_evidence(ctx, args):
@@ -288,6 +336,8 @@ SECTIONS = ("observations", "interpretation", "limitations", "next_steps")
 
 def prepare_report(ctx, args):
     prefix, narrative = args.get("metrics_set"), args.get("narrative")
+    if ctx.site is None:
+        raise ToolError("no_site", "保存报告需要观测点。" + NO_SITE)
     if prefix not in ctx.sets:
         raise ToolError("unknown_metrics_set", "先调用 compute_observation_metrics，再用返回的 metrics_set 起草报告。")
     if not isinstance(narrative, dict) or not isinstance(narrative.get("summary"), str) or not narrative["summary"].strip() or len(narrative["summary"]) > 1200:
@@ -332,6 +382,9 @@ TOOLS = {
     "update_plan": {"kind": "read", "title": "更新计划", "handler": update_plan,
                     "description": "记录或更新本次任务的执行计划（1–8 步）。开始时先调用一次，完成或调整步骤后再次调用，用户会看到这份清单。",
                     "parameters": schema({"steps": {"type": "array", "items": schema({"title": {"type": "string"}, "status": {"type": "string", "enum": ["pending", "in_progress", "done", "skipped"]}}, ["title", "status"])}}, ["steps"])},
+    "get_playback_context": {"kind": "read", "title": "读取当前画面", "handler": get_playback_context,
+                             "description": "读取用户在监测大屏上正在看的视频、分析 Run 和当前播放时刻，以及该时刻的可见鱼数和最近的珊瑚采样帧。用户问“现在”“这里”“当前画面”时先调用。",
+                             "parameters": schema({})},
     "get_site_overview": {"kind": "read", "title": "读取观测点概况", "handler": get_site_overview,
                           "description": "读取当前观测点的水深、备注和最近 10 份报告的关键指标，用于了解历史与趋势。",
                           "parameters": schema({})},

@@ -220,3 +220,59 @@ class AgentTests(ObservationFixture, TestCase):
         messages = providers.anthropic_messages(transcript)
         self.assertEqual([m["role"] for m in messages], ["user", "assistant", "user"])
         self.assertEqual([b["type"] for b in messages[2]["content"]], ["tool_result", "text"])
+
+    # Sessions started from a video on the monitoring wall carry what the observer is looking at.
+    def test_wall_session_reads_the_current_frame_and_offers_seekable_times(self):
+        self.configure()
+        coral = self.coral_run([(50, 40, 10), (60, 40, 0), (50, 25, 25)])
+        self.script.replies = [
+            openai(calls=[("get_playback_context", {}), ("fish_activity_timeline", {"run_id": str(self.run_fish.pk), "bin_seconds": 1})]),
+            openai("{{V%d.label}} 在 {{P1.time}} 可见 {{P1.fish.visible_now}}，最活跃在 {{T1.busiest.window}}。" % self.task.pk),
+        ]
+        context = {"current_time_s": 1.2, "fish_run_id": str(self.run_fish.pk), "coral_run_id": str(coral.pk)}
+        response = self.client.post(f"/api/v1/tasks/{self.task.pk}/agent-sessions", {"text": "现在画面里鱼多吗？", "context": context}, content_type="application/json")
+        self.assertEqual(response.status_code, 201, response.content)
+        self.assertEqual((response.json()["task_id"], response.json()["site_id"]), (self.task.pk, None))
+        self.work()
+        run = self.latest()
+        self.assertEqual(run.status, "completed", run.error_code)
+        self.assertEqual(run.context, {"task_id": self.task.pk, "current_time_s": 1.2, "fish_run_id": str(self.run_fish.pk), "coral_run_id": str(coral.pk)})
+        system = self.script.requests[0]["messages"][0]["content"]
+        self.assertIn("监测大屏", system)
+        self.assertIn(str(self.run_fish.pk), system)
+        self.assertNotIn(self.task.original_filename, json.dumps(self.script.requests, ensure_ascii=False))
+        ledger = run.ledger["metrics"]
+        self.assertEqual((ledger["P1.time"]["seek_s"], ledger["P1.fish.visible_now"]["value"]), (1.2, 2))
+        self.assertEqual((ledger["P1.coral.sample_time"]["value"], ledger["P1.coral.bleached_fraction"]["value"]), (1.0, 0.0))
+        self.assertEqual((ledger["T1.busiest.window"]["seek_s"], ledger["T1.busiest.window"]["task_id"]), (2, self.task.pk))
+        self.assertIn({"text": self.task.original_filename, "metric": f"V{self.task.pk}.label"}, run.answer["segments"])
+        self.assertFalse(run.answer["audit"]["unknown_metrics"])
+
+    def test_wall_session_needs_a_site_to_save_a_report(self):
+        self.configure()
+        self.script.replies = [
+            openai(calls=[("compute_observation_metrics", {"run_ids": [str(self.run_fish.pk)]})]),
+            openai(calls=[("get_site_overview", {}), ("propose_observation_report", {"metrics_set": "S1", "narrative": {"summary": "{{S1.v1.fish.mean_count}}"}})]),
+            openai("需要先选择观测点。"),
+        ]
+        created = self.client.post(f"/api/v1/tasks/{self.task.pk}/agent-sessions", {"text": "出报告"}, content_type="application/json").json()
+        self.work()
+        run = self.latest()
+        self.assertEqual(run.status, "completed")
+        results = [json.loads(m["content"]) for m in self.script.requests[2]["messages"] if m["role"] == "tool"]
+        self.assertEqual([r.get("error") for r in results], [None, "no_site", "no_site"])
+        self.assertEqual(run.ledger["metrics"]["S1.site.name"]["value"], "未归档")
+        filed = self.client.patch(f"/api/v1/agent-sessions/{created['id']}", {"site_id": str(self.site.pk)}, content_type="application/json")
+        self.assertEqual(filed.json()["site_name"], self.site.name)
+        site_session = self.start()
+        self.assertEqual(self.client.patch(f"/api/v1/agent-sessions/{site_session['id']}", {"site_id": None}, content_type="application/json").status_code, 409)
+
+    def test_wall_context_is_validated(self):
+        self.configure()
+        url = f"/api/v1/tasks/{self.task.pk}/agent-sessions"
+        for context in ({"current_time_s": -1}, {"current_time_s": "1"}, {"secret": 1}, {"fish_run_id": "x"}):
+            self.assertEqual(self.client.post(url, {"text": "x", "context": context}, content_type="application/json").json()["error"]["code"], "invalid_context")
+        self.assertEqual(self.client.post(url, {"text": "x", "site_id": "nope"}, content_type="application/json").json()["error"]["code"], "unknown_site")
+        foreign = self.client.post(url, {"text": "x", "context": {"current_time_s": 3, "coral_run_id": str(self.run_fish.pk)}}, content_type="application/json").json()
+        self.assertEqual(foreign["runs"][0]["context"], {"task_id": self.task.pk, "current_time_s": 3.0})
+        self.assertEqual(len(self.client.get(url).json()["items"]), 1)

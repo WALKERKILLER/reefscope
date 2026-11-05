@@ -4,6 +4,8 @@ import { getReportAgent } from '../api'
 // One copy of the report-agent settings, shared by the top-bar dialog and the reports page.
 export const agentConfig = ref(null)
 export const agentDialogOpen = ref(false)
+// Set by the wall's assistant to open a saved report on the reports page.
+export const requestedReport = ref(null)
 
 export async function loadAgentConfig() {
   try {

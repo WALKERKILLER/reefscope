@@ -188,7 +188,7 @@ import UiTabs from './ui/UiTabs.vue'
 import AgentWorkspace from './AgentWorkspace.vue'
 import ObservationReportViewer from './ObservationReportViewer.vue'
 import { listSites, createSite, updateSite, deleteSite, listSiteReports, listReportCandidates, previewObservationReport, createObservationReport, getObservationReport } from '../api'
-import { agentConfig, agentDialogOpen, loadAgentConfig } from '../lib/reportAgent'
+import { agentConfig, agentDialogOpen, loadAgentConfig, requestedReport } from '../lib/reportAgent'
 import { confirmDialog } from '../lib/dialogs'
 import { formatDateTime } from '../lib/format'
 import { toast } from '../lib/toast'
@@ -356,6 +356,12 @@ async function removeSite() {
 }
 
 onMounted(() => { loadSites(); loadCandidates(); if (!agentConfig.value) loadAgentConfig() })
+watch(requestedReport, async id => {
+  if (!id) return
+  requestedReport.value = null
+  await openReport(id)
+  if (siteId.value) refreshSite()
+}, { immediate: true })
 </script>
 
 <style scoped>

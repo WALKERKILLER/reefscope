@@ -129,9 +129,14 @@ class ReportAgentConfig(models.Model):
 
 
 class AgentSession(models.Model):
-    """A conversation with the observation agent about one site; runs share its history and evidence."""
+    """A conversation with the observation agent; runs share its history and evidence.
+
+    Sessions start from a site (reports page) or from a video on the monitoring wall; a wall session
+    may be filed to a site later, which saving a report requires.
+    """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    site = models.ForeignKey(ObservationSite, on_delete=models.CASCADE, related_name="agent_sessions")
+    site = models.ForeignKey(ObservationSite, on_delete=models.CASCADE, null=True, blank=True, related_name="agent_sessions")
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True, blank=True, related_name="agent_sessions")
     title = models.CharField(max_length=120)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -148,6 +153,7 @@ class AgentRun(models.Model):
     cancel_requested = models.BooleanField(default=False)
     transcript = models.JSONField(default=list)
     ledger = models.JSONField(default=dict)
+    context = models.JSONField(default=dict)  # what the observer was looking at when sending the message
     plan = models.JSONField(default=list)
     pending = models.JSONField(default=dict)
     answer = models.JSONField(null=True)

@@ -30,6 +30,7 @@ python manage.py run_agent_worker        # 持续领取；--once 只处理一个
 | 工具 | 类型 | 作用 | 登记的证据 |
 | --- | --- | --- | --- |
 | `update_plan` | 读取 | 写入 1–8 步计划，界面侧栏显示 | — |
+| `get_playback_context` | 读取 | 大屏会话的当前时刻、当前帧可见鱼数、全片平均、最近的珊瑚采样帧 | `P{n}.*` |
 | `get_site_overview` | 读取 | 水深、备注、最近 10 份报告的关键指标 | `SITE.depth`、`H{日期}.*` |
 | `list_videos` | 读取 | 视频与各 Run 的状态、模型、机位；缺少的分析 | `V{视频}.label` |
 | `compute_observation_metrics` | 读取 | 与报告相同的确定性指标、比较、局限 | `S{n}.*` |
@@ -43,6 +44,15 @@ python manage.py run_agent_worker        # 持续领取；--once 只处理一个
 | `propose_observation_report` | 行动 | 用一个指标集起草报告；先审计，未通过退回 | — |
 
 工具描述与参数 schema 在 `backend/app/agent/tools.py` 的 `TOOLS` 中，同一份定义按两种格式发送。工具结果的数值以“显示值 · 标签”给模型，不给原始浮点数，以免模型自行换算。
+
+## 监测大屏
+
+观测员在“监测大屏”点顶栏的“观测助手”（快捷键 A），或在右栏切到“观测助手”，助手会停靠在右栏，视频照常播放。
+
+- 会话属于当前视频（`/api/v1/tasks/{id}/agent-sessions`）。每条消息都会附带播放时刻和该视频已完成的鱼类、珊瑚 Run。
+- 回答中带时间的数值（`T{n}` 时段、`W{n}` 时间窗、`C{n}` 采样帧时间、`P{n}.time`）显示为 ▶ 按钮，点击跳到视频该时刻。只有指向当前视频的时间可以点击。
+- 未归档的会话可以分析，但不能读取观测点历史或起草报告；在面板顶部选择观测点即可归档（`PATCH /api/v1/agent-sessions/{id}`）。
+- 输入框沿用 `.input` 的颜色与焦点环：外框 `radius-lg`、内边距 4 px，内部按钮 `radius`，圆角同心。文本框随内容增高，有上限，不显示拖拽手柄。
 
 ## 审计与数值
 

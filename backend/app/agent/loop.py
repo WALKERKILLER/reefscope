@@ -12,11 +12,11 @@ from uuid import uuid4
 
 from django.utils import timezone
 
-from app.models import AgentRun, AgentStep
+from app.models import AgentRun, AgentStep, Task
 from app.observation.agent import ERRORS, AgentError, config as agent_config, segments
 from app.observation.sources import SOURCES
 from . import providers
-from .tools import TOOLS, Context, ToolError, definitions
+from .tools import TOOLS, Context, ToolError, definitions, register_video
 
 PROMPT_VERSION = "reefscope-observation-agent/v2"
 MAX_TURNS = 14
@@ -47,6 +47,13 @@ SYSTEM = """你是 ReefScope 平台中的珊瑚礁观测分析 Agent，帮助研
 - 环境数据只作背景；没有独立真值时不评价模型精度；不给健康等级或评分。
 
 可用资料卡：{sources}"""
+
+WALL = """
+
+监测大屏：用户正在大屏上观看视频 #{task}，指代它时用 {{{{{label}}}}}。可直接使用的已完成 Run：{runs}。
+- 用户问“现在”“这里”“当前画面”时，先调用 get_playback_context，再按需要看前后时段。
+- 提到时刻或时段时使用带时间的指标 ID（如 {{{{T1.busiest.window}}}}、{{{{C1.bleached1.time}}}}、{{{{P1.time}}}}），用户可以点击它跳到视频的这一刻。
+- 回答要短，先给结论，适合观测员一边看画面一边读。"""
 
 
 class Stop(Exception):
@@ -175,6 +182,15 @@ def resume_pending(run):
     run.pending = {}
 
 
+def system_prompt(run, ctx):
+    text = SYSTEM.format(site=ctx.site.name if ctx.site else "（未归档）", today=timezone.localdate().isoformat(), sources="、".join(SOURCES))
+    context = run.context or {}
+    if context.get("task_id"):
+        runs = "；".join(f"{label} {context[key]}" for key, label in (("fish_run_id", "鱼类"), ("coral_run_id", "珊瑚")) if context.get(key)) or "无，先用 list_videos 查看"
+        text += WALL.format(task=context["task_id"], label=f"V{context['task_id']}.label", runs=runs)
+    return text
+
+
 def execute(run):
     ctx = Context(run)
     config = agent_config()
@@ -182,13 +198,16 @@ def execute(run):
         raise Stop("failed", "agent_disabled")
     run.agent = run.agent or {"prompt_version": PROMPT_VERSION, "api_format": config.api_format, "model": config.model,
                               "host": urllib.parse.urlsplit(config.base_url).hostname or ""}
+    task = Task.objects.filter(pk=(run.context or {}).get("task_id")).first() if (run.context or {}).get("task_id") else None
+    if task is not None:
+        register_video(ctx, task)
     if run.pending:
         resume_pending(run)
         add_step(run, "resume", "继续执行")
     run.usage = usage = run.usage or {"input_tokens": 0, "output_tokens": 0, "turns": 0, "tool_calls": 0, "revisions": 0}
     budget = {"tool_calls": usage["tool_calls"], "revisions": usage["revisions"]}
     started = time.monotonic()
-    system = SYSTEM.format(site=ctx.site.name, today=timezone.localdate().isoformat(), sources="、".join(SOURCES))
+    system = system_prompt(run, ctx)
     tools = definitions()
     while True:
         heartbeat(run)

@@ -11,6 +11,7 @@ from .views import PipelineConfigView, ProcessTaskView, TaskBatchActionView, Tas
 
 urlpatterns = [
     path("v1/sites/<uuid:site_id>/agent-sessions", agent.SiteSessions.as_view(), name="agent-sessions"),
+    path("v1/tasks/<int:task_id>/agent-sessions", agent.TaskSessions.as_view(), name="task-agent-sessions"),
     path("v1/agent-sessions/<uuid:session_id>", agent.SessionDetail.as_view(), name="agent-session"),
     path("v1/agent-sessions/<uuid:session_id>/messages", agent.SessionMessages.as_view(), name="agent-session-messages"),
     path("v1/agent-runs/<uuid:run_id>", agent.RunDetail.as_view(), name="agent-run"),

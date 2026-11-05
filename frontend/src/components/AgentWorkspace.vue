@@ -1,22 +1,26 @@
 <template>
-  <section class="ui-card agent" aria-labelledby="agent-title">
+  <section class="agent" :class="dock ? 'dock' : 'ui-card'" :aria-labelledby="dock ? undefined : `${uid}-title`" :aria-label="dock ? '观测助手' : undefined">
     <header class="ui-card-head">
-      <h2 id="agent-title">Agent 分析</h2>
+      <h2 v-if="!dock" :id="`${uid}-title`">Agent 分析</h2>
       <div class="session-bar">
         <div v-if="sessions.length" class="session-select" :title="session?.title"><UiSelect :model-value="sessionId || ''" :options="sessionOptions" aria-label="选择会话" placeholder="选择会话" @update:model-value="openSession" /></div>
         <button class="btn btn-sm" :disabled="!sessionId" @click="newSession"><IconPlus />新会话</button>
         <button v-if="session" class="btn btn-sm btn-ghost btn-icon" :disabled="active" :title="active ? '运行中的会话不能删除' : '删除会话'" aria-label="删除会话" @click="removeSession"><IconTrash /></button>
+      </div>
+      <div v-if="taskId != null" class="filing">
+        <span class="note" aria-hidden="true">归档到观测点</span>
+        <div class="filing-select" :title="siteLabel"><UiSelect :model-value="filedSite" :options="siteOptions" aria-label="归档到观测点" placeholder="不归档" @update:model-value="fileTo" /></div>
       </div>
     </header>
 
     <div v-if="!enabled" class="ui-banner ui-banner-info"><IconSparkles /><span>Agent 需要一个支持工具调用的模型服务。<button class="ui-link" @click="agentDialogOpen = true">配置模型服务</button></span></div>
 
     <div class="layout">
-      <div class="thread">
+      <div ref="threadRef" class="thread">
         <div v-if="!session" class="intro">
-          <p class="note">Agent 会先列计划，再调用平台工具取数、复核和比对。正文中的每个数值都来自工具结果并经过平台审计；排队分析、保存报告之前会请你批准。</p>
+          <p class="note">{{ taskId != null ? '就正在看的这段视频提问：Agent 会读取当前画面和分析结果，回答里带 ▶ 的时刻可以点击跳转。保存报告前需要归档到观测点。' : 'Agent 会先列计划，再调用平台工具取数、复核和比对。正文中的每个数值都来自工具结果并经过平台审计；排队分析、保存报告之前会请你批准。' }}</p>
           <ul class="starters" aria-label="示例任务">
-            <li v-for="item in STARTERS" :key="item"><button class="starter" :disabled="!enabled || sending" @click="draft = item">{{ item }}</button></li>
+            <li v-for="item in starters" :key="item"><button class="starter" :disabled="!enabled || sending" @click="draft = item">{{ item }}</button></li>
           </ul>
         </div>
 
@@ -34,11 +38,11 @@
                 <template v-if="step.payload.tool === 'propose_observation_report'">
                   <p class="note tnum">指标集 {{ step.payload.proposal.metrics_set }} · 观测日期 {{ step.payload.proposal.observed_on }} · {{ step.payload.proposal.run_ids.length }} 项分析</p>
                   <div class="draft">
-                    <p><ReportSegments :parts="step.payload.proposal.narrative.summary" :metrics="scoped(run, step.payload.proposal.metrics_set)" /></p>
+                    <p><ReportSegments :parts="step.payload.proposal.narrative.summary" :metrics="scoped(run, step.payload.proposal.metrics_set)" :seek-task="seekTask" @seek="emit('seek', $event)" /></p>
                     <template v-for="name in SECTIONS" :key="name">
                       <template v-if="step.payload.proposal.narrative[name]?.length">
                         <h4>{{ SECTION_LABEL[name] }}</h4>
-                        <ul><li v-for="(parts, i) in step.payload.proposal.narrative[name]" :key="i"><ReportSegments :parts="parts" :metrics="scoped(run, step.payload.proposal.metrics_set)" /></li></ul>
+                        <ul><li v-for="(parts, i) in step.payload.proposal.narrative[name]" :key="i"><ReportSegments :parts="parts" :metrics="scoped(run, step.payload.proposal.metrics_set)" :seek-task="seekTask" @seek="emit('seek', $event)" /></li></ul>
                       </template>
                     </template>
                   </div>
@@ -70,7 +74,9 @@
                   <template v-if="step.payload.metric_ids?.length">
                     <span class="eyebrow">返回的指标 <span class="tnum">{{ step.payload.metric_ids.length }}</span></span>
                     <ul class="ledger-list">
-                      <li v-for="id in step.payload.metric_ids.slice(0, 12)" :key="id"><span class="mono truncate" :title="id">{{ id }}</span><span class="tnum">{{ metricText(run, id) }}</span></li>
+                      <li v-for="id in step.payload.metric_ids.slice(0, 12)" :key="id"><span class="mono truncate" :title="id">{{ id }}</span>
+                        <button v-if="seekable(run.ledger[id])" type="button" class="seek tnum" :title="`跳到 ${metricText(run, id)}`" @click="emit('seek', run.ledger[id].seek_s)"><IconPlayerPlay aria-hidden="true" />{{ metricText(run, id) }}</button>
+                        <span v-else class="tnum">{{ metricText(run, id) }}</span></li>
                     </ul>
                     <span v-if="step.payload.metric_ids.length > 12" class="note">其余 {{ step.payload.metric_ids.length - 12 }} 项见右侧证据</span>
                   </template>
@@ -91,7 +97,7 @@
 
           <div v-if="run.answer" class="answer">
             <span class="eyebrow">Agent</span>
-            <p class="answer-text"><ReportSegments :parts="run.answer.segments" :metrics="run.ledger" /></p>
+            <p class="answer-text"><ReportSegments :parts="run.answer.segments" :metrics="run.ledger" :seek-task="seekTask" @seek="emit('seek', $event)" /></p>
             <p v-if="run.answer.audit.unverified_numbers.length" class="note">有 {{ run.answer.audit.unverified_numbers.length }} 处数字没有对应的平台指标，已标出，请勿直接引用。</p>
           </div>
 
@@ -105,19 +111,23 @@
           <p v-if="stalled && run === lastRun" class="ui-banner ui-banner-warn"><IconAlertTriangle /><span>任务还在排队，Agent Worker 可能没有运行。在后端目录运行 <code class="mono">python manage.py run_agent_worker</code> 后会自动继续。</span></p>
         </article>
 
-        <form class="composer" @submit.prevent="send">
-          <label class="sr-only" for="agent-input">{{ session ? '继续提问' : '描述任务' }}</label>
-          <textarea id="agent-input" v-model="draft" class="input" rows="3" maxlength="4000" :disabled="!enabled || active"
-                    :placeholder="active ? '等待当前任务完成…' : session ? '继续追问，例如 换成 10 秒一段再看一次' : '例如 分析最近一次观测，指出值得人工复核的时段'" @keydown.enter.ctrl.prevent="send" @keydown.enter.meta.prevent="send" />
-          <div class="composer-foot">
-            <span class="note">Ctrl + Enter 发送</span>
-            <span v-if="sendError" class="error" role="alert">{{ sendError }}</span>
-            <button class="btn btn-primary" :disabled="!enabled || active || sending || !draft.trim()"><IconSend />{{ session ? '发送' : '开始任务' }}</button>
-          </div>
-        </form>
       </div>
 
-      <aside class="rail" aria-label="任务上下文">
+      <form class="composer" @submit.prevent="send">
+        <div class="composer-box" :class="{ disabled: !enabled || active }">
+          <label class="sr-only" :for="`${uid}-input`">{{ session ? '继续提问' : '描述任务' }}</label>
+          <textarea :id="`${uid}-input`" ref="inputRef" v-model="draft" class="composer-input" :rows="dock ? 2 : 3" maxlength="4000" :disabled="!enabled || active"
+                    :placeholder="placeholder" @keydown.enter.ctrl.prevent="send" @keydown.enter.meta.prevent="send" />
+          <div class="composer-foot">
+            <span class="note">Ctrl + Enter 发送</span>
+            <button class="btn btn-primary btn-sm" :disabled="!enabled || active || sending || !draft.trim()"><IconSend />{{ session ? '发送' : '开始任务' }}</button>
+          </div>
+        </div>
+        <p v-if="sendError" class="error" role="alert">{{ sendError }}</p>
+      </form>
+
+      <component :is="dock ? 'details' : 'aside'" class="rail" aria-label="任务上下文">
+        <summary v-if="dock" class="rail-summary"><IconListCheck aria-hidden="true" /><span class="truncate">{{ planSummary }}</span><span class="note tnum">证据 {{ evidenceCount || 0 }}</span></summary>
         <section>
           <h3 class="eyebrow">计划</h3>
           <ol v-if="plan.length" class="plan">
@@ -131,7 +141,9 @@
           <details v-for="group in evidence" :key="group.prefix" class="evidence">
             <summary><span class="mono">{{ group.prefix }}</span><span>{{ group.label }}</span><span class="note tnum">{{ group.items.length }}</span></summary>
             <ul class="ledger-list">
-              <li v-for="item in group.items" :key="item.id"><span class="truncate" :title="`${item.id} · ${item.label}`">{{ item.label }}</span><span class="tnum">{{ item.text }}</span></li>
+              <li v-for="item in group.items" :key="item.id"><span class="truncate" :title="`${item.id} · ${item.label}`">{{ item.label }}</span>
+                <button v-if="seekable(item.metric)" type="button" class="seek tnum" :title="`跳到 ${item.text}`" @click="emit('seek', item.metric.seek_s)"><IconPlayerPlay aria-hidden="true" />{{ item.text }}</button>
+                <span v-else class="tnum">{{ item.text }}</span></li>
             </ul>
           </details>
         </section>
@@ -143,27 +155,31 @@
             <div><dt>审计退回</dt><dd>{{ lastRun.usage.revisions || 0 }} / {{ lastRun.limits.revisions }}</dd></div>
           </dl>
         </section>
-      </aside>
+      </component>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, useId, watch } from 'vue'
 import { IconAlertCircle, IconAlertTriangle, IconCircleCheck, IconCircleDashed, IconCircleDot, IconCircleMinus, IconCircleX, IconFileText, IconListCheck, IconLoader2,
   IconMessage2, IconPlayerPlay, IconPlayerStop, IconPlus, IconSend, IconShieldCheck, IconSparkles, IconTool, IconTrash, IconUserCheck } from '@tabler/icons-vue'
 import UiSelect from './ui/UiSelect.vue'
 import ReportSegments from './ReportSegments.vue'
-import { listAgentSessions, createAgentSession, getAgentSession, deleteAgentSession, sendAgentMessage, getAgentRun, decideAgentProposal, cancelAgentRun } from '../api'
+import { listAgentSessions, createAgentSession, listTaskAgentSessions, createTaskAgentSession, getAgentSession, updateAgentSession, deleteAgentSession, sendAgentMessage,
+  getAgentRun, decideAgentProposal, cancelAgentRun, listSites } from '../api'
 import { agentDialogOpen } from '../lib/reportAgent'
 import { confirmDialog } from '../lib/dialogs'
 import { formatDateTime } from '../lib/format'
 import { toast } from '../lib/toast'
 
-const props = defineProps({ siteId: { type: String, required: true }, enabled: Boolean })
-const emit = defineEmits(['open-report', 'report-saved'])
+// A site session lives on the reports page; a task session docks beside the monitoring wall's video,
+// sends the playback context with every message and can seek the video.
+const props = defineProps({ siteId: String, taskId: Number, context: Function, dock: Boolean, enabled: Boolean })
+const emit = defineEmits(['open-report', 'report-saved', 'seek'])
 
 const STARTERS = ['分析最近一次观测，指出鱼类最活跃的时段和值得人工复核的珊瑚帧', '检查哪些视频还缺少鱼类或珊瑚分析，需要的话提议补跑', '用已完成的分析起草一份观测报告，提交给我审阅']
+const WALL_STARTERS = ['现在画面里有多少鱼？和整段视频相比算多吗？', '这段视频鱼类最活跃的是哪段时间？带我跳过去看', '当前画面附近的珊瑚有白化吗？哪些采样帧值得复核？']
 const ACTIVE = ['queued', 'running', 'awaiting_approval', 'applying']
 const STATUS = { queued: '排队中', running: 'Agent 正在工作', awaiting_approval: '等待你批准', applying: '正在执行你批准的操作' }
 const KIND = { fish: '鱼类', coral: '珊瑚' }
@@ -179,13 +195,30 @@ const RUN_ERRORS = {
   agent_disabled: '模型服务未启用。', agent_output_truncated: '回答超过输出长度上限。调高最大输出 tokens 或缩小任务范围。', agent_internal_error: 'Agent 运行出错。查看后端日志后重试。',
   unknown_tool: '模型调用了不存在的工具，已告知模型。', invalid_arguments: '模型给出的参数不是有效 JSON，已告知模型。'
 }
-const SEND_ERRORS = { agent_disabled: '模型服务未启用。', run_in_progress: '当前任务还没结束。', invalid_message: '任务描述填写 1–4000 字。' }
+const SEND_ERRORS = { agent_disabled: '模型服务未启用。', run_in_progress: '当前任务还没结束。', invalid_message: '任务描述填写 1–4000 字。', invalid_context: '无法读取当前画面，刷新页面后重试。', unknown_site: '所选观测点不存在，重新选择。' }
 
 const sessions = ref([]), sessionId = ref(null), session = ref(null)
 const draft = ref(''), sending = ref(false), sendError = ref(''), deciding = ref(''), stopping = ref(false)
-const notes = reactive({}), stalled = ref(false)
+// The reports page and the wall can both keep a workspace mounted, so element IDs are per instance.
+const uid = useId()
+const notes = reactive({}), stalled = ref(false), threadRef = ref(null), inputRef = ref(null)
+const sites = ref([]), pendingSite = ref('')
 let timer = null, queuedSince = 0
 
+const placeholder = computed(() => active.value ? '等待当前任务完成…'
+  : props.taskId != null ? (session.value ? '继续追问，例如 那 30 秒之后呢？' : '例如 现在画面里的鱼比平时多吗？')
+  : session.value ? '继续追问，例如 换成 10 秒一段再看一次' : '例如 分析最近一次观测，指出值得人工复核的时段')
+const starters = computed(() => props.taskId != null ? WALL_STARTERS : STARTERS)
+const seekTask = computed(() => props.taskId ?? null)
+const seekable = item => props.taskId != null && item?.seek_s != null && item.task_id === props.taskId
+const filedSite = computed(() => session.value ? session.value.site_id || '' : pendingSite.value)
+const siteOptions = computed(() => [{ value: '', label: '不归档' }, ...sites.value.map(item => ({ value: item.id, label: item.name }))])
+const siteLabel = computed(() => siteOptions.value.find(o => o.value === filedSite.value)?.label)
+const planSummary = computed(() => {
+  if (!plan.value.length) return '计划与证据'
+  const current = plan.value.find(item => item.status === 'in_progress') || plan.value.findLast(item => item.status === 'done') || plan.value[0]
+  return `${plan.value.filter(item => item.status === 'done').length}/${plan.value.length} · ${current.title}`
+})
 const sessionOptions = computed(() => sessions.value.map(item => ({ value: item.id, label: item.title, hint: formatDateTime(item.updated_at) })))
 const lastRun = computed(() => session.value?.runs.at(-1) || null)
 const active = computed(() => !!lastRun.value && ACTIVE.includes(lastRun.value.status))
@@ -194,7 +227,7 @@ const evidence = computed(() => {
   const groups = {}
   for (const [id, item] of Object.entries(lastRun.value?.ledger || {})) {
     const prefix = id.split('.')[0]
-    ;(groups[prefix] ||= { prefix, label: NAMESPACE[prefix.replace(/\d+$/, '')] || '', items: [] }).items.push({ id, label: item.label, text: valueText(item) })
+    ;(groups[prefix] ||= { prefix, label: NAMESPACE[prefix.replace(/\d+$/, '')] || '', items: [] }).items.push({ id, label: item.label, text: valueText(item), metric: item })
   }
   return Object.values(groups)
 })
@@ -232,7 +265,7 @@ function explain(err, table) {
 
 async function loadSessions() {
   try {
-    sessions.value = (await listAgentSessions(props.siteId)).data.items
+    sessions.value = (await (props.taskId != null ? listTaskAgentSessions(props.taskId) : listAgentSessions(props.siteId))).data.items
   } catch {
     sessions.value = []
   }
@@ -258,15 +291,19 @@ async function send() {
   sending.value = true
   sendError.value = ''
   try {
+    const context = props.context?.()
     if (session.value) {
-      session.value.runs.push((await sendAgentMessage(session.value.id, text)).data)
+      session.value.runs.push((await sendAgentMessage(session.value.id, text, context)).data)
     } else {
-      const created = (await createAgentSession(props.siteId, text)).data
+      const created = (props.taskId != null
+        ? await createTaskAgentSession(props.taskId, { text, context, site_id: pendingSite.value || null })
+        : await createAgentSession(props.siteId, text)).data
       await loadSessions()
       sessionId.value = created.id
       session.value = created
     }
     draft.value = ''
+    scrollToEnd(true)
     poll()
   } catch (err) {
     sendError.value = explain(err, SEND_ERRORS)
@@ -290,7 +327,9 @@ function poll() {
     try {
       const fresh = (await getAgentRun(run.id, run.steps.at(-1)?.index || 0)).data
       const steps = fresh.steps
+      const follow = nearEnd()
       Object.assign(run, { ...fresh, steps: run.steps.concat(steps) })
+      if (steps.length || fresh.answer) scrollToEnd(follow)
       if (run.status === 'queued') queuedSince ||= Date.now()
       else queuedSince = 0
       if (run.status === 'completed' || run.status === 'failed') loadSessions()
@@ -300,6 +339,25 @@ function poll() {
     poll()
     stalled.value = run.status === 'queued' && queuedSince > 0 && Date.now() - queuedSince > 15000
   }, 1000)
+}
+
+// The docked thread follows new steps unless the observer has scrolled up to read.
+function nearEnd() {
+  const el = threadRef.value
+  return !!el && el.scrollHeight - el.scrollTop - el.clientHeight < 120
+}
+function scrollToEnd(follow) {
+  if (props.dock && follow) nextTick(() => threadRef.value?.scrollTo({ top: threadRef.value.scrollHeight }))
+}
+
+async function fileTo(siteId) {
+  if (!session.value) { pendingSite.value = siteId; return }
+  try {
+    session.value = { ...session.value, ...(await updateAgentSession(session.value.id, { site_id: siteId || null })).data }
+    toast({ title: siteId ? '已归档到观测点' : '已取消归档', desc: siteId ? siteLabel.value : undefined, type: 'success' })
+  } catch {
+    toast({ title: '无法归档会话', desc: '检查后端连接后重试。', type: 'error' })
+  }
 }
 
 async function decide(run, step, approve) {
@@ -347,19 +405,30 @@ async function removeSession() {
   }
 }
 
-watch(() => props.siteId, async () => {
+watch(() => [props.siteId, props.taskId], async () => {
   newSession()
   await loadSessions()
   if (sessions.value.length) await openSession(sessions.value[0].id)
+  scrollToEnd(true)
 }, { immediate: true })
+watch(() => props.taskId, async id => { if (id != null && !sites.value.length) sites.value = (await listSites().catch(() => ({ data: { items: [] } }))).data.items }, { immediate: true })
+// Opening the docked assistant puts the cursor in the composer once it accepts input.
+watch(() => props.dock && props.enabled, ready => { if (ready) nextTick(() => inputRef.value?.focus()) }, { immediate: true })
 onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
+.agent { container: agent / inline-size; }
 .session-bar { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.filing { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.filing > .note { flex: none; }
+.filing-select { flex: 1; min-width: 0; max-width: 240px; }
 .session-select { width: 240px; min-width: 0; }
 .session-bar > .btn { flex: none; }
-.layout { display: grid; grid-template-columns: minmax(0, 1fr) 248px; gap: 20px; align-items: start; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 248px; grid-template-areas: "thread rail" "composer rail"; gap: 18px 20px; align-items: start; }
+.thread { grid-area: thread; }
+.composer { grid-area: composer; }
+.rail { grid-area: rail; }
 .thread { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
 .intro { display: flex; flex-direction: column; gap: 10px; }
 .intro .note { max-width: 68ch; }
@@ -409,13 +478,25 @@ onBeforeUnmount(stopPolling)
 .spin { --icon-size: 14px; animation: spin 900ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+/* One field: the box carries the input tokens and focus ring; the textarea inside is bare and grows with
+   its content. Corners stay concentric: box radius-lg (10px) = button radius (6px) + 4px padding. */
 .composer { display: flex; flex-direction: column; gap: 6px; }
-.composer textarea { min-height: 72px; font-family: inherit; resize: vertical; }
-.composer-foot { display: flex; align-items: center; gap: 10px; }
+.composer-box { display: flex; flex-direction: column; gap: 2px; padding: 4px; border-radius: var(--radius-lg); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line); cursor: text; transition: box-shadow 120ms var(--ease); }
+.composer-box:hover { box-shadow: inset 0 0 0 1px var(--line-strong); }
+.composer-box:focus-within { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.composer-box.disabled { cursor: default; }
+.composer-input { display: block; width: 100%; min-height: calc(3lh + 12px); max-height: calc(8lh + 12px); padding: 6px 8px; border: 0; outline: none; font: inherit; font-size: var(--text-body); line-height: 1.5; color: var(--ink); background: transparent; resize: none; field-sizing: content; overflow-y: auto; }
+.composer-input::placeholder { color: var(--ink-3); opacity: 0.8; }
+.composer-input:disabled { cursor: default; }
+.composer-foot { display: flex; align-items: center; gap: 8px; padding-inline-start: 8px; }
 .composer-foot .btn { margin-inline-start: auto; }
+@media (max-width: 640px) { .composer-input { font-size: 16px; } }
 .error { font-size: var(--text-small); color: var(--danger); }
-.rail { position: sticky; top: 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding-inline-start: 16px; box-shadow: inset 1px 0 0 var(--line); }
+aside.rail { position: sticky; top: 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; padding-inline-start: 16px; box-shadow: inset 1px 0 0 var(--line); }
 .rail section { display: flex; flex-direction: column; gap: 8px; }
+.seek { display: inline-flex; align-items: center; justify-self: end; gap: 3px; padding: 0 4px; border: 0; border-radius: var(--radius-sm); font: inherit; color: var(--accent); background: transparent; cursor: pointer; }
+.seek:hover { background: var(--accent-soft); }
+.seek .tabler-icon { --icon-size: 11px; }
 .plan { display: flex; flex-direction: column; gap: 6px; list-style: none; padding: 0; margin: 0; font-size: var(--text-small); }
 .plan li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; color: var(--ink-2); }
 .plan .tabler-icon { --icon-size: 14px; margin-top: 2px; color: var(--ink-3); }
@@ -428,13 +509,29 @@ onBeforeUnmount(stopPolling)
 .budget div { display: flex; justify-content: space-between; gap: 8px; }
 .budget dt { color: var(--ink-3); }
 .budget dd { margin: 0; color: var(--ink); }
-@media (max-width: 1180px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }
-  .rail { position: static; padding: 12px 0 0; box-shadow: inset 0 1px 0 var(--line); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+@container agent (max-width: 760px) {
+  .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "thread" "composer" "rail"; }
+  aside.rail { position: static; padding: 12px 0 0; box-shadow: inset 0 1px 0 var(--line); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 }
-@media (max-width: 640px) {
+@container agent (max-width: 520px) {
   .session-bar { width: 100%; }
   .session-select { flex: 1; width: auto; }
-  .composer-foot > .note { display: none; }
 }
+@container agent (max-width: 340px) { .composer-foot > .note { display: none; } }
+
+/* Docked beside the wall's video: header, collapsible context strip, scrolling thread, pinned composer. */
+.dock { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.dock > .ui-card-head { flex-direction: column; align-items: stretch; gap: 8px; }
+.dock .layout { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; gap: 10px; }
+.dock .rail { order: -1; flex: none; display: block; padding: 0; box-shadow: none; border-radius: var(--radius); background: var(--surface-2); }
+.dock .rail[open] { max-height: 45%; overflow: auto; }
+.dock .rail > section { padding: 0 10px 10px; }
+.rail-summary { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; padding: 7px 10px; font-size: var(--text-small); color: var(--ink-2); cursor: pointer; list-style: none; }
+.rail-summary::-webkit-details-marker { display: none; }
+.rail-summary .tabler-icon { --icon-size: 14px; color: var(--accent); }
+.dock .thread { flex: 1; min-height: 0; overflow-y: auto; gap: 14px; padding-inline-end: 4px; overscroll-behavior: contain; }
+.dock .run + .run { padding-top: 14px; }
+.dock .goal, .dock .answer-text, .dock .draft { max-width: none; }
+.dock .composer { flex: none; }
+.dock .composer-input { min-height: calc(2lh + 12px); max-height: calc(6lh + 12px); }
 </style>
