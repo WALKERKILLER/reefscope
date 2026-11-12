@@ -5,7 +5,7 @@ numpy<2
 ultralytics==8.4.198
 opencv-python==4.11.0.86
 gunicorn==22.0.0
-lap==0.5.13
+lap==0.5.14
 PyYAML==6.0.3
 transformers==4.57.1
 safetensors==0.8.0
